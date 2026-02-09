@@ -13,6 +13,7 @@ BOLD=$'\033[1m'
 NC=$'\033[0m'
 
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # MODEL MAPPING
@@ -399,12 +400,14 @@ check_lmstudio() {
 # Clear all model-related environment variables
 # This prevents stale model settings from leaking between providers
 clear_all_models() {
+  local tmp_settings
+  tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
   jq 'del(.env.ANTHROPIC_MODEL,
           .env.ANTHROPIC_DEFAULT_OPUS_MODEL,
           .env.ANTHROPIC_DEFAULT_SONNET_MODEL,
           .env.ANTHROPIC_DEFAULT_HAIKU_MODEL)' \
-     "$SETTINGS" > "$SETTINGS.tmp"
-  mv "$SETTINGS.tmp" "$SETTINGS"
+     "$SETTINGS" > "$tmp_settings"
+  mv "$tmp_settings" "$SETTINGS"
 }
 
 apply_config() {
@@ -429,8 +432,11 @@ apply_config() {
     claude)
       # Official Anthropic - no API key, no model overrides needed
       clear_all_models
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq 'del(.env.ANTHROPIC_AUTH_TOKEN, .env.ANTHROPIC_BASE_URL)' \
-         "$SETTINGS" > "$SETTINGS.tmp"
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
       ;;
 
     zai)
@@ -451,6 +457,8 @@ apply_config() {
       sonnet_model="glm-4.7"
       haiku_model="glm-4.5-flash"
 
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$api_key" \
          --arg opus "$opus_model" \
          --arg sonnet "$sonnet_model" \
@@ -460,7 +468,8 @@ apply_config() {
           .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
           .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet |
           .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku' \
-         "$SETTINGS" > "$SETTINGS.tmp"
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
       ;;
 
     deepseek)
@@ -469,13 +478,16 @@ apply_config() {
       # Clear any stale model settings first
       clear_all_models
 
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$DEEPSEEK_API_KEY" \
          '.env.ANTHROPIC_AUTH_TOKEN = $token |
           .env.ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic" |
           .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "deepseek-chat" |
           .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "deepseek-chat" |
           .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "deepseek-chat"' \
-         "$SETTINGS" > "$SETTINGS.tmp"
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
       ;;
 
     kimi)
@@ -484,13 +496,16 @@ apply_config() {
       # Clear any stale model settings first
       clear_all_models
 
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$KIMI_API_KEY" \
          '.env.ANTHROPIC_AUTH_TOKEN = $token |
           .env.ANTHROPIC_BASE_URL = "https://api.moonshot.ai/anthropic" |
           .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "moonshot-v1-128k" |
           .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "moonshot-v1-32k" |
           .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "moonshot-v1-8k"' \
-         "$SETTINGS" > "$SETTINGS.tmp"
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
       ;;
 
     qwen)
@@ -499,13 +514,16 @@ apply_config() {
       # Clear any stale model settings first
       clear_all_models
 
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$SILICONFLOW_API_KEY" \
          '.env.ANTHROPIC_AUTH_TOKEN = $token |
           .env.ANTHROPIC_BASE_URL = "https://api.siliconflow.cn/v1/anthropic" |
           .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "Qwen/Qwen2.5-Coder-32B-Instruct" |
           .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "Qwen/Qwen2.5-Coder-14B-Instruct" |
           .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "Qwen/Qwen2.5-Coder-7B-Instruct"' \
-         "$SETTINGS" > "$SETTINGS.tmp"
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
       ;;
 
     openrouter)
@@ -537,6 +555,8 @@ apply_config() {
       sonnet_model="$opus_model"
       haiku_model="$opus_model"
 
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$OPENROUTER_API_KEY" \
          --arg opus "$opus_model" \
          --arg sonnet "$sonnet_model" \
@@ -547,7 +567,8 @@ apply_config() {
           .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
           .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet |
           .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku' \
-         "$SETTINGS" > "$SETTINGS.tmp"
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
       ;;
 
     ollama)
@@ -616,6 +637,8 @@ apply_config() {
       echo -e "  Haiku  → $haiku_model ${CYAN}(default for local)${NC}"
 
       # Set 7b as the default ANTHROPIC_MODEL for local use
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg opus "$opus_model" \
          --arg sonnet "$sonnet_model" \
          --arg haiku "$haiku_model" \
@@ -625,7 +648,8 @@ apply_config() {
           .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
           .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet |
           .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku' \
-         "$SETTINGS" > "$SETTINGS.tmp"
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
       ;;
 
     lmstudio)
@@ -634,9 +658,12 @@ apply_config() {
       # Clear any stale model settings first
       clear_all_models
 
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq '.env.ANTHROPIC_AUTH_TOKEN = "lmstudio" |
           .env.ANTHROPIC_BASE_URL = "http://localhost:1234/v1"' \
-         "$SETTINGS" > "$SETTINGS.tmp"
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
       ;;
 
     *)
@@ -646,7 +673,7 @@ apply_config() {
       ;;
   esac
 
-  mv "$SETTINGS.tmp" "$SETTINGS"
+  chmod 600 "$SETTINGS"
   return 0
 }
 

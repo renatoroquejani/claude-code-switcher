@@ -111,6 +111,7 @@ fi
 if [ ! -d "$HOME/.claude" ]; then
   echo -e "${YELLOW}⚠️  ~/.claude not found${NC}"
   mkdir -p "$HOME/.claude"
+  chmod 700 "$HOME/.claude"
   echo -e "${GREEN}✓${NC} Created ~/.claude"
 else
   echo -e "${GREEN}✓${NC} ~/.claude exists"
@@ -118,6 +119,7 @@ fi
 
 if [ ! -d "$HOME/.claude/backups" ]; then
   mkdir -p "$HOME/.claude/backups"
+  chmod 700 "$HOME/.claude/backups"
 fi
 
 # Check PATH
@@ -139,7 +141,7 @@ if [ "$NEEDS_UPDATE" = true ]; then
   echo ""
   echo -e "${CYAN}Installing $SCRIPT_NAME v${VERSION}...${NC}"
   cp "$BIN_SRC" "$BIN_DST"
-  chmod +x "$BIN_DST"
+  chmod 755 "$BIN_DST"
   echo -e "${GREEN}✓${NC} Script installed/updated"
 fi
 
