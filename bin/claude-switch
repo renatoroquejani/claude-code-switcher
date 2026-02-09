@@ -393,6 +393,41 @@ check_lmstudio() {
   return 0
 }
 
+# Validate model name to prevent injection attacks
+# Accepts: alphanumeric, hyphens, underscores, slashes, colons, dots
+# Rejects: shell metacharacters, spaces, special chars
+validate_model_name() {
+  local model="$1"
+
+  # Check if empty
+  if [ -z "$model" ]; then
+    return 0  # Empty is OK (will use default)
+  fi
+
+  # Check length (prevent DoS via ultra-long names)
+  if [ ${#model} -gt 255 ]; then
+    echo -e "${RED}❌ Model name too long (max 255 characters)${NC}"
+    return 1
+  fi
+
+  # Validate characters: only allow safe chars
+  case "$model" in
+    *[!a-zA-Z0-9_\-/:.]*)
+      echo -e "${RED}❌ Invalid model name: $model${NC}"
+      echo "Model names can only contain: letters, numbers, hyphens, underscores, slashes, colons, and dots"
+      return 1
+      ;;
+  esac
+
+  # Prevent path traversal attempts
+  if [[ "$model" =~ \.\. ]]; then
+    echo -e "${RED}❌ Path traversal not allowed${NC}"
+    return 1
+  fi
+
+  return 0
+}
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # APPLY CONFIGURATIONS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -413,6 +448,11 @@ clear_all_models() {
 apply_config() {
   local provider="$1"
   local override_model="$2"
+
+  # Validate model name if provided
+  if [ -n "$override_model" ]; then
+    validate_model_name "$override_model" || return 1
+  fi
 
   # Normalize provider name
   case "$provider" in
@@ -692,6 +732,11 @@ esac
 
 # Parse provider:model
 IFS=':' read -r provider override_model <<< "$1"
+
+# Validate model name if provided
+if [ -n "$override_model" ]; then
+  validate_model_name "$override_model" || exit 1
+fi
 
 # Normalize legacy names
 case "$provider" in
