@@ -83,7 +83,7 @@ claude-switch help
 | Provider | Command | Pricing | Model Mapping |
 |----------|---------|---------|---------------|
 | Claude | `claude-switch claude` | $20/month (Pro) | Opus/Sonnet/Haiku → Official |
-| Z.AI | `claude-switch zai` | $15/month | Opus→4.7, Sonnet→4.6, Haiku→4.5-Flash |
+| Z.AI | `claude-switch zai` | $15/month | Opus→4.7, Sonnet→4.7, Haiku→4.5-Flash |
 | DeepSeek | `claude-switch deepseek` | $0.14/1M tokens | All tiers → deepseek-chat |
 | Kimi | `claude-switch kimi` | Variable | Opus→128k, Sonnet→32k, Haiku→8k |
 | Qwen | `claude-switch qwen` | $0.42/1M tokens | Opus→32B, Sonnet→14B, Haiku→7B |
@@ -125,24 +125,29 @@ source ~/.bashrc
 
 ## 🎨 Shell Aliases
 
-After installation, you can use convenient aliases:
+After installation, you can use convenient aliases (created during install):
 
 ```bash
-claude        # Switch to Claude and start
-zai           # Switch to Z.AI and start (also: z.ai)
-deepseek      # Switch to DeepSeek and start
-qwen          # Switch to Qwen and start
-ollama-claude # Switch to Ollama and start
-ccs-status    # Show current status
-ccs-list      # List all providers
-ccs-models    # Show model mapping
+claude        # Switch to Claude (Anthropic)
+zai           # Switch to Z.AI
+deepseek      # Switch to DeepSeek
+kimi          # Switch to Kimi
+qwen          # Switch to Qwen
+ollama        # Switch to Ollama
+lmstudio      # Switch to LM Studio
+
+# Status and info
+cstatus       # Show current status (same as claude-switch status)
+clist         # List all providers
+cmodels       # Show model mapping for a provider
+
+# Ollama model-specific
+ollama7       # Switch to Ollama with qwen3-coder:7b
+ollama14      # Switch to Ollama with qwen3-coder:14b
+ollama32      # Switch to Ollama with qwen3-coder:32b
 ```
 
-**Legacy aliases** (still work):
-```bash
-opus          # Maps to "claude"
-glm           # Maps to "zai"
-```
+**Note:** These aliases are created by the installer when you choose to install them.
 
 ## 📁 Project Structure
 
