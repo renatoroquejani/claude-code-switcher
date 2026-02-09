@@ -265,17 +265,10 @@ EOF
 
     echo -e "${GREEN}✓${NC} Aliases installed to $ALIAS_DST"
 
-    # Source aliases immediately for current session
-    source "$ALIAS_DST"
-    echo -e "${GREEN}✓${NC} Aliases loaded in current session"
+    echo -e "${GREEN}✓${NC} Aliases installed to $ALIAS_DST"
   fi
 else
   echo -e "${GREEN}✓${NC} Aliases are configured"
-  # Load existing aliases for current session
-  if [ -f "$ALIAS_DST" ]; then
-    source "$ALIAS_DST"
-    echo -e "${GREEN}✓${NC} Aliases loaded in current session"
-  fi
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -287,13 +280,25 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "${GREEN}✅ Installation complete!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "Aliases are ready to use! Try:"
-echo -e "  ${CYAN}cstatus${NC}           - Show current config"
-echo -e "  ${CYAN}clist${NC}             - List providers"
-echo -e "  ${CYAN}zai${NC}               - Switch to Z.AI"
-echo -e "  ${CYAN}claude${NC}            - Switch to Claude"
+
+# Check if aliases are loaded in current shell
+if ! type cstatus &>/dev/null; then
+  echo -e "${YELLOW}⚠️  Aliases are not loaded in this session yet.${NC}"
+  echo ""
+  echo -e "${CYAN}Run this command to load aliases now:${NC}"
+  echo -e "${GREEN}source ~/.claude/aliases.sh${NC}"
+  echo ""
+  echo "Or restart your terminal."
+else
+  echo "Aliases are ready to use! Try:"
+  echo -e "  ${CYAN}cstatus${NC}           - Show current config"
+  echo -e "  ${CYAN}clist${NC}             - List providers"
+  echo -e "  ${CYAN}zai${NC}               - Switch to Z.AI"
+  echo -e "  ${CYAN}claude${NC}            - Switch to Claude"
+fi
+
 echo ""
-echo "Or use full commands:"
+echo "Full commands:"
 echo -e "  ${CYAN}claude-switch help${NC}     - Show help"
 echo -e "  ${CYAN}claude-switch keys${NC}     - Where to get API keys"
 echo ""
