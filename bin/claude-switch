@@ -50,7 +50,7 @@ get_qwen_models() {
 # OpenRouter (user specifies model, all tiers use the same)
 get_openrouter_models() {
   # Model is specified by user, all tiers map to same model
-  local model="${OPENROUTER_DEFAULT_MODEL:-anthropic/claude-opus-4}"
+  local model="${OPENROUTER_DEFAULT_MODEL:-anthropic/claude-opus-4.6}"
   echo "opus:$model sonnet:$model haiku:$model"
 }
 
@@ -236,7 +236,7 @@ show_model_mapping() {
       echo -e "  Haiku   →  Qwen/Qwen2.5-Coder-7B-Instruct"
       ;;
     openrouter)
-      local model="${OPENROUTER_DEFAULT_MODEL:-anthropic/claude-opus-4}"
+      local model="${OPENROUTER_DEFAULT_MODEL:-anthropic/claude-opus-4.6}"
       echo -e "  Opus    →  $model"
       echo -e "  Sonnet  →  $model"
       echo -e "  Haiku   →  $model"
@@ -524,11 +524,11 @@ apply_config() {
         echo "Usage: claude-switch openrouter:<model>"
         echo ""
         echo "Popular Claude models on OpenRouter:"
-        echo "  anthropic/claude-opus-4       (Claude Opus 4.6 - latest)"
+        echo "  anthropic/claude-opus-4.6       (Claude Opus 4.6 - latest)"
         echo "  anthropic/claude-sonnet-4     (Claude Sonnet 4.5)"
         echo "  anthropic/claude-haiku-4      (Claude Haiku 4.5)"
         echo ""
-        echo "Example: claude-switch openrouter:anthropic/claude-opus-4"
+        echo "Example: claude-switch openrouter:anthropic/claude-opus-4.6"
         echo ""
         echo "Or set OPENROUTER_DEFAULT_MODEL in ~/.claude/api-keys.env"
         return 1
