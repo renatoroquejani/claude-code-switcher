@@ -107,7 +107,7 @@ if [ ! -f "$CONFIG_DST" ]; then
 
 # OpenRouter
 #OPENROUTER_API_KEY="your-key-here"
-#OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4"
+#OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
 EOF
   fi
   chmod 600 "$CONFIG_DST"

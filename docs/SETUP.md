@@ -102,7 +102,7 @@ export SILICONFLOW_API_KEY="your-siliconflow-key-here"
 export OPENROUTER_API_KEY="your-openrouter-key-here"
 
 # Optional: Set default OpenRouter model
-export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4"
+export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
 ```
 
 **Secure the file:**
@@ -189,7 +189,7 @@ To avoid specifying the model every time with OpenRouter:
 nano ~/.claude/api-keys.env
 
 # Add your preferred default model
-export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4"
+export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
 ```
 
 Then you can simply run:

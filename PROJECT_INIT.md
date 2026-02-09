@@ -407,7 +407,7 @@ export OPENROUTER_API_KEY=""             # OpenRouter - 100+ models
 #
 # Se configurado, será usado quando executar: claude-switch openrouter
 # Exemplos:
-# export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4"
+# export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
 # export OPENROUTER_DEFAULT_MODEL="qwen/qwen-2.5-coder-32b"
 # export OPENROUTER_DEFAULT_MODEL="deepseek/deepseek-coder"
 

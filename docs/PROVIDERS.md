@@ -185,7 +185,7 @@ API aggregator providing access to 100+ models.
 export OPENROUTER_API_KEY="your-key-here"
 
 # Optional: Set default model
-export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4"
+export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
 
 # 3. Use with specific model
 claude-switch openrouter:anthropic/claude-opus-4
