@@ -242,7 +242,7 @@ alias zai='claude-switch zai'
 alias deepseek='claude-switch deepseek'
 alias kimi='claude-switch kimi'
 alias qwen='claude-switch qwen'
-alias ollama='claude-switch ollama'
+alias ollama-switch='claude-switch ollama'
 alias lmstudio='claude-switch lmstudio'
 
 # Status and info
