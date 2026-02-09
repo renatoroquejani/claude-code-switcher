@@ -264,10 +264,18 @@ EOF
     fi
 
     echo -e "${GREEN}✓${NC} Aliases installed to $ALIAS_DST"
-    echo -e "${YELLOW}⚠️  Run: source $SHELL_CONFIG${NC}"
+
+    # Source aliases immediately for current session
+    source "$ALIAS_DST"
+    echo -e "${GREEN}✓${NC} Aliases loaded in current session"
   fi
 else
   echo -e "${GREEN}✓${NC} Aliases are configured"
+  # Load existing aliases for current session
+  if [ -f "$ALIAS_DST" ]; then
+    source "$ALIAS_DST"
+    echo -e "${GREEN}✓${NC} Aliases loaded in current session"
+  fi
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -279,16 +287,15 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo -e "${GREEN}✅ Installation complete!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
-echo "Quick start:"
-echo -e "  ${CYAN}claude-switch help${NC}     - Show help"
-echo -e "  ${CYAN}claude-switch list${NC}     - List providers"
-echo -e "  ${CYAN}claude-switch status${NC}   - Show current config"
-echo -e "  ${CYAN}claude-switch keys${NC}     - Where to get API keys"
+echo "Aliases are ready to use! Try:"
+echo -e "  ${CYAN}cstatus${NC}           - Show current config"
+echo -e "  ${CYAN}clist${NC}             - List providers"
+echo -e "  ${CYAN}zai${NC}               - Switch to Z.AI"
+echo -e "  ${CYAN}claude${NC}            - Switch to Claude"
 echo ""
-echo "Switch providers:"
-echo -e "  ${CYAN}claude-switch zai${NC}      - Switch to Z.AI"
-echo -e "  ${CYAN}claude-switch ollama${NC}   - Switch to local Ollama"
-echo -e "  ${CYAN}claude-switch openrouter:anthropic/claude-opus-4.6${NC} - OpenRouter"
+echo "Or use full commands:"
+echo -e "  ${CYAN}claude-switch help${NC}     - Show help"
+echo -e "  ${CYAN}claude-switch keys${NC}     - Where to get API keys"
 echo ""
 echo "Add your API keys to: ${YELLOW}~/.claude/api-keys.env${NC}"
 echo ""
