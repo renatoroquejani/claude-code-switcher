@@ -1,6 +1,6 @@
 #!/bin/bash
-# Claude Code Switcher - Installer
-# Installs the claude-switch script to ~/.local/bin/
+# Claude Code Switcher - Smart Installer
+# Validates existing installation and updates only what's needed
 
 set -e
 
@@ -12,6 +12,7 @@ BIN_SRC="$PROJECT_ROOT/bin/$SCRIPT_NAME"
 BIN_DST="$HOME/.local/bin/$SCRIPT_NAME"
 CONFIG_EXAMPLE="$PROJECT_ROOT/config/api-keys.env.example"
 CONFIG_DST="$HOME/.claude/api-keys.env"
+ALIAS_DST="$HOME/.claude/aliases.sh"
 
 # Colors
 GREEN=$'\033[0;32m'
@@ -22,9 +23,14 @@ CYAN=$'\033[0;36m'
 BOLD=$'\033[1m'
 NC=$'\033[0m'
 
+# Track what needs to be done
+NEEDS_UPDATE=false
+NEEDS_ALIASES=false
+ALIASES_OUTDATED=false
+
 echo ""
 echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BOLD}  Claude Code Switcher v${VERSION} - Installer${NC}"
+echo -e "${BOLD}  Claude Code Switcher v${VERSION} - Smart Installer${NC}"
 echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
@@ -35,9 +41,38 @@ if [ ! -f "$BIN_SRC" ]; then
   exit 1
 fi
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# VALIDATE EXISTING INSTALLATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+echo -e "${CYAN}Checking existing installation...${NC}"
+
+# Check if already installed
+if [ -f "$BIN_DST" ]; then
+  INSTALLED_VERSION=$(grep "^VERSION=" "$BIN_DST" 2>/dev/null | cut -d'"' -f2)
+  echo -e "${GREEN}✓${NC} Already installed: v${INSTALLED_VERSION:-unknown}"
+
+  # Compare versions
+  if [ "$INSTALLED_VERSION" != "$VERSION" ]; then
+    echo -e "${YELLOW}⚠️  New version available: v${INSTALLED_VERSION} → v${VERSION}${NC}"
+    NEEDS_UPDATE=true
+  else
+    # Check if files are different (content comparison)
+    if ! cmp -s "$BIN_SRC" "$BIN_DST"; then
+      echo -e "${YELLOW}⚠️  Script has local modifications${NC}"
+      NEEDS_UPDATE=true
+    else
+      echo -e "${GREEN}✓${NC} Script is up to date"
+    fi
+  fi
+else
+  echo -e "${YELLOW}⚠️  Not installed yet${NC}"
+  NEEDS_UPDATE=true
+fi
+
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
-  echo -e "${YELLOW}⚠️  jq is not installed${NC}"
+  echo -e "${RED}❌ jq is not installed${NC}"
   echo "Installing jq..."
 
   if command -v apt-get &> /dev/null; then
@@ -56,32 +91,67 @@ if ! command -v jq &> /dev/null; then
     echo "  macOS: brew install jq"
     exit 1
   fi
+  echo -e "${GREEN}✓${NC} jq installed"
+else
+  echo -e "${GREEN}✓${NC} jq is installed"
 fi
 
-# Create ~/.local/bin if it doesn't exist
+# Check directories
+echo ""
+echo -e "${CYAN}Checking directories...${NC}"
+
 if [ ! -d "$HOME/.local/bin" ]; then
-  echo -e "${CYAN}Creating ~/.local/bin...${NC}"
+  echo -e "${YELLOW}⚠️  ~/.local/bin not found${NC}"
   mkdir -p "$HOME/.local/bin"
+  echo -e "${GREEN}✓${NC} Created ~/.local/bin"
+else
+  echo -e "${GREEN}✓${NC} ~/.local/bin exists"
 fi
 
-# Install the script
-echo -e "${CYAN}Installing $SCRIPT_NAME to ~/.local/bin...${NC}"
-cp "$BIN_SRC" "$BIN_DST"
-chmod +x "$BIN_DST"
-
-# Create config directory if it doesn't exist
 if [ ! -d "$HOME/.claude" ]; then
-  echo -e "${CYAN}Creating ~/.claude directory...${NC}"
+  echo -e "${YELLOW}⚠️  ~/.claude not found${NC}"
   mkdir -p "$HOME/.claude"
+  echo -e "${GREEN}✓${NC} Created ~/.claude"
+else
+  echo -e "${GREEN}✓${NC} ~/.claude exists"
 fi
 
-# Create backups directory
 if [ ! -d "$HOME/.claude/backups" ]; then
   mkdir -p "$HOME/.claude/backups"
 fi
 
-# Create api-keys.env if it doesn't exist
+# Check PATH
+if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+  echo ""
+  echo -e "${YELLOW}⚠️  ~/.local/bin is not in your PATH${NC}"
+  echo ""
+  echo "Add this to your ~/.bashrc or ~/.zshrc:"
+  echo -e "${GREEN}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+  echo ""
+  echo "Then run: source ~/.bashrc  # or source ~/.zshrc"
+fi
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# INSTALL OR UPDATE SCRIPT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+if [ "$NEEDS_UPDATE" = true ]; then
+  echo ""
+  echo -e "${CYAN}Installing $SCRIPT_NAME v${VERSION}...${NC}"
+  cp "$BIN_SRC" "$BIN_DST"
+  chmod +x "$BIN_DST"
+  echo -e "${GREEN}✓${NC} Script installed/updated"
+fi
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# VALIDATE API KEYS FILE
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+echo ""
+echo -e "${CYAN}Checking API keys configuration...${NC}"
+
 if [ ! -f "$CONFIG_DST" ]; then
+  echo -e "${YELLOW}⚠️  api-keys.env not found${NC}"
   if [ -f "$CONFIG_EXAMPLE" ]; then
     echo -e "${CYAN}Creating api-keys.env from example...${NC}"
     cp "$CONFIG_EXAMPLE" "$CONFIG_DST"
@@ -113,30 +183,55 @@ EOF
   chmod 600 "$CONFIG_DST"
   echo -e "${YELLOW}⚠️  Edit ~/.claude/api-keys.env to add your API keys${NC}"
 else
-  echo -e "${GREEN}✓${NC} api-keys.env already exists"
+  echo -e "${GREEN}✓${NC} api-keys.env exists"
+
+  # Check if file has correct permissions
+  PERMS=$(stat -c %a "$CONFIG_DST" 2>/dev/null || stat -f %A "$CONFIG_DST" 2>/dev/null)
+  if [ "$PERMS" != "600" ]; then
+    echo -e "${YELLOW}⚠️  Fixing permissions (600)${NC}"
+    chmod 600 "$CONFIG_DST"
+  fi
 fi
 
-# Add to PATH if needed
-if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
-  echo ""
-  echo -e "${YELLOW}⚠️  ~/.local/bin is not in your PATH${NC}"
-  echo ""
-  echo "Add this to your ~/.bashrc or ~/.zshrc:"
-  echo -e "${GREEN}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
-  echo ""
-  echo "Then run: source ~/.bashrc  # or source ~/.zshrc"
-else
-  echo -e "${GREEN}✓${NC} ~/.local/bin is in your PATH"
-fi
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# VALIDATE ALIASES
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Offer to install shell aliases
 echo ""
-read -p "Install shell aliases for quick switching? [y/N] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[SsYy]$ ]]; then
-  ALIAS_FILE="$HOME/.claude/aliases.sh"
+echo -e "${CYAN}Checking shell aliases...${NC}"
 
-  cat > "$ALIAS_FILE" << 'EOF'
+# Detect shell config
+if [ -n "$ZSH_VERSION" ]; then
+  SHELL_CONFIG="$HOME/.zshrc"
+elif [ -n "$BASH_VERSION" ]; then
+  SHELL_CONFIG="$HOME/.bashrc"
+else
+  SHELL_CONFIG="$HOME/.profile"
+fi
+
+if [ -f "$ALIAS_DST" ]; then
+  echo -e "${GREEN}✓${NC} Aliases file exists"
+
+  # Check if aliases are sourced in shell config
+  if grep -q "source.*$ALIAS_DST" "$SHELL_CONFIG" 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} Aliases are loaded in $SHELL_CONFIG"
+  else
+    echo -e "${YELLOW}⚠️  Aliases file exists but not loaded in $SHELL_CONFIG${NC}"
+    NEEDS_ALIASES=true
+  fi
+else
+  echo -e "${YELLOW}⚠️  Aliases file not found${NC}"
+  NEEDS_ALIASES=true
+fi
+
+# Offer to install/update aliases
+if [ "$NEEDS_ALIASES" = true ]; then
+  echo ""
+  read -p "Install shell aliases for quick switching? [y/N] " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[SsYy]$ ]]; then
+    # Create aliases file
+    cat > "$ALIAS_DST" << 'EOF'
 # Claude Code Switcher Aliases
 # Source this file in your ~/.bashrc or ~/.zshrc:
 #   source ~/.claude/aliases.sh
@@ -161,25 +256,24 @@ alias ollama14='claude-switch ollama:qwen3-coder:14b'
 alias ollama32='claude-switch ollama:qwen3-coder:32b'
 EOF
 
-  # Detect shell and add to config
-  if [ -n "$ZSH_VERSION" ]; then
-    SHELL_CONFIG="$HOME/.zshrc"
-  else
-    SHELL_CONFIG="$HOME/.bashrc"
-  fi
+    # Add to shell config if not already there
+    if ! grep -q "source.*$ALIAS_DST" "$SHELL_CONFIG" 2>/dev/null; then
+      echo "" >> "$SHELL_CONFIG"
+      echo "# Claude Code Switcher aliases" >> "$SHELL_CONFIG"
+      echo "source \"$ALIAS_DST\"" >> "$SHELL_CONFIG"
+    fi
 
-  if ! grep -q "source.*$ALIAS_FILE" "$SHELL_CONFIG" 2>/dev/null; then
-    echo "" >> "$SHELL_CONFIG"
-    echo "# Claude Code Switcher aliases" >> "$SHELL_CONFIG"
-    echo "source \"$ALIAS_FILE\"" >> "$SHELL_CONFIG"
-    echo -e "${GREEN}✓${NC} Aliases installed to $SHELL_CONFIG"
-    echo "Run: source $SHELL_CONFIG"
-  else
-    echo -e "${GREEN}✓${NC} Aliases already configured"
+    echo -e "${GREEN}✓${NC} Aliases installed to $ALIAS_DST"
+    echo -e "${YELLOW}⚠️  Run: source $SHELL_CONFIG${NC}"
   fi
+else
+  echo -e "${GREEN}✓${NC} Aliases are configured"
 fi
 
-# Done
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SUMMARY
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}✅ Installation complete!${NC}"
@@ -194,6 +288,7 @@ echo ""
 echo "Switch providers:"
 echo -e "  ${CYAN}claude-switch zai${NC}      - Switch to Z.AI"
 echo -e "  ${CYAN}claude-switch ollama${NC}   - Switch to local Ollama"
+echo -e "  ${CYAN}claude-switch openrouter:anthropic/claude-opus-4.6${NC} - OpenRouter"
 echo ""
 echo "Add your API keys to: ${YELLOW}~/.claude/api-keys.env${NC}"
 echo ""
