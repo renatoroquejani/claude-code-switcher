@@ -21,21 +21,7 @@
 
 ## Quick Install
 
-### Option 1: Package Manager (Recommended)
-
-**Arch Linux / AUR:**
-```bash
-yay -S claude-code-switcher
-# or
-paru -S claude-code-switcher
-```
-
-**macOS / Homebrew:**
-```bash
-brew install claude-code-switcher
-```
-
-### Option 2: Install from repository
+### Install from repository
 
 ```bash
 # Clone the repository
@@ -47,7 +33,7 @@ cd claude-code-switcher
 source ~/.bashrc  # or ~/.zshrc
 ```
 
-### Option 3: Quick curl install
+### Quick curl install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main/scripts/install.sh | bash
@@ -282,8 +268,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Roadmap
 
 Completed in v2.2.0:
-- [x] Homebrew formula (macOS)
-- [x] AUR package (Arch Linux)
 - [x] Groq provider support
 - [x] Together AI provider support
 - [x] Interactive configuration wizard
