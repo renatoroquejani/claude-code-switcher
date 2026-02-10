@@ -1,18 +1,30 @@
 #!/bin/bash
 # Claude Code Switcher - Smart Installer
-# Validates existing installation and updates only what's needed
+# Supports both local (git clone) and remote (curl) installation
 
 set -e
 
-VERSION="2.1.0"
+VERSION="2.2.0"
 SCRIPT_NAME="claude-switch"
+REPO_URL="https://github.com/renatoroquejani/claude-code-switcher"
+RAW_BASE_URL="https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main"
+
+# Detect installation mode
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Try local paths first
 BIN_SRC="$PROJECT_ROOT/bin/$SCRIPT_NAME"
-BIN_DST="$HOME/.local/bin/$SCRIPT_NAME"
 CONFIG_EXAMPLE="$PROJECT_ROOT/config/api-keys.env.example"
+ALIASES_SRC="$PROJECT_ROOT/config/aliases.sh"
+
+# Destination paths
+BIN_DST="$HOME/.local/bin/$SCRIPT_NAME"
 CONFIG_DST="$HOME/.claude/api-keys.env"
 ALIAS_DST="$HOME/.claude/aliases.sh"
+
+# Installation mode
+REMOTE_MODE=false
 
 # Colors
 GREEN=$'\033[0;32m'
@@ -26,7 +38,6 @@ NC=$'\033[0m'
 # Track what needs to be done
 NEEDS_UPDATE=false
 NEEDS_ALIASES=false
-ALIASES_OUTDATED=false
 
 echo ""
 echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -34,17 +45,58 @@ echo -e "${BOLD}  Claude Code Switcher v${VERSION} - Smart Installer${NC}"
 echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
-# Check if source script exists
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DOWNLOAD FUNCTIONS (for remote installation)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+download_file() {
+  local url="$1"
+  local dest="$2"
+  local desc="$3"
+
+  if command -v curl &> /dev/null; then
+    echo -e "${CYAN}Downloading $desc...${NC}"
+    curl -fsSL "$url" -o "$dest"
+  elif command -v wget &> /dev/null; then
+    echo -e "${CYAN}Downloading $desc...${NC}"
+    wget -q "$url" -O "$dest"
+  else
+    echo -e "${RED}❌ Error: Neither curl nor wget is available${NC}"
+    echo "Please install curl or wget to continue."
+    exit 1
+  fi
+}
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# DETECTION: LOCAL OR REMOTE
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 if [ ! -f "$BIN_SRC" ]; then
-  echo -e "${RED}❌ Error: Source script not found: $BIN_SRC${NC}"
-  echo "Please run this script from the project repository."
-  exit 1
+  echo -e "${YELLOW}⚠️  Local files not found, switching to remote mode...${NC}"
+  REMOTE_MODE=true
+
+  # Create temp directory for downloads
+  TEMP_DIR=$(mktemp -d)
+  BIN_SRC="$TEMP_DIR/$SCRIPT_NAME"
+  ALIASES_SRC="$TEMP_DIR/aliases.sh"
+
+  # Download main script
+  download_file "$RAW_BASE_URL/bin/$SCRIPT_NAME" "$BIN_SRC" "main script"
+
+  # Try to download aliases file
+  if ! download_file "$RAW_BASE_URL/config/aliases.sh" "$ALIASES_SRC" "aliases file" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Could not download aliases file, will create default${NC}"
+    ALIASES_SRC=""
+  fi
+else
+  echo -e "${GREEN}✓${NC} Local installation detected"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # VALIDATE EXISTING INSTALLATION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+echo ""
 echo -e "${CYAN}Checking existing installation...${NC}"
 
 # Check if already installed
@@ -72,6 +124,7 @@ fi
 
 # Check if jq is installed
 if ! command -v jq &> /dev/null; then
+  echo ""
   echo -e "${RED}❌ jq is not installed${NC}"
   echo "Installing jq..."
 
@@ -154,12 +207,9 @@ echo -e "${CYAN}Checking API keys configuration...${NC}"
 
 if [ ! -f "$CONFIG_DST" ]; then
   echo -e "${YELLOW}⚠️  api-keys.env not found${NC}"
-  if [ -f "$CONFIG_EXAMPLE" ]; then
-    echo -e "${CYAN}Creating api-keys.env from example...${NC}"
-    cp "$CONFIG_EXAMPLE" "$CONFIG_DST"
-  else
-    echo -e "${CYAN}Creating empty api-keys.env...${NC}"
-    cat > "$CONFIG_DST" << 'EOF'
+  echo -e "${CYAN}Creating api-keys.env...${NC}"
+
+  cat > "$CONFIG_DST" << 'EOF'
 # API Keys for Claude Code Switcher
 # Get keys at: https://github.com/renatoroquejani/claude-code-switcher
 #
@@ -177,11 +227,20 @@ if [ ! -f "$CONFIG_DST" ]; then
 # Qwen (SiliconFlow)
 #SILICONFLOW_API_KEY="your-key-here"
 
+# Groq
+#GROQ_API_KEY="your-key-here"
+
+# Together AI
+#TOGETHER_API_KEY="your-key-here"
+
 # OpenRouter
 #OPENROUTER_API_KEY="your-key-here"
 #OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
+
+# Anthropic API (pay-as-you-go)
+#ANTHROPIC_API_KEY="your-key-here"
 EOF
-  fi
+
   chmod 600 "$CONFIG_DST"
   echo -e "${YELLOW}⚠️  Edit ~/.claude/api-keys.env to add your API keys${NC}"
 else
@@ -232,31 +291,74 @@ if [ "$NEEDS_ALIASES" = true ]; then
   read -p "Install shell aliases for quick switching? [y/N] " -n 1 -r
   echo
   if [[ $REPLY =~ ^[SsYy]$ ]]; then
-    # Create aliases file
-    cat > "$ALIAS_DST" << 'EOF'
-# Claude Code Switcher Aliases
-# Source this file in your ~/.bashrc or ~/.zshrc:
-#   source ~/.claude/aliases.sh
+    # Use downloaded aliases if available, otherwise create default
+    if [ -n "$ALIASES_SRC" ] && [ -f "$ALIASES_SRC" ]; then
+      cp "$ALIASES_SRC" "$ALIAS_DST"
+    else
+      # Create default aliases
+      cat > "$ALIAS_DST" << 'EOF'
+#!/bin/bash
+# Claude Code Switcher - Shell Aliases
+# Source this file in your ~/.bashrc or ~/.zshrc
 
-# Quick provider switching
-alias claude='claude-switch claude'
-alias zai='claude-switch zai'
-alias deepseek='claude-switch deepseek'
-alias kimi='claude-switch kimi'
-alias qwen='claude-switch qwen'
-alias ollama-switch='claude-switch ollama'
-alias lmstudio='claude-switch lmstudio'
+# Provider switching (all end with -switch to avoid conflicts)
+claude-switch() {
+  command claude-switch claude && claude
+}
+anthropic-api-switch() {
+  command claude-switch anthropic-api && claude
+}
+zai-switch() {
+  command claude-switch zai && claude
+}
+deepseek-switch() {
+  command claude-switch deepseek && claude
+}
+kimi-switch() {
+  command claude-switch kimi && claude
+}
+qwen-switch() {
+  command claude-switch qwen && claude
+}
+groq-switch() {
+  command claude-switch groq && claude
+}
+together-switch() {
+  command claude-switch together && claude
+}
+openrouter-switch() {
+  if [ -z "$1" ]; then
+    command claude-switch openrouter && claude
+  else
+    command claude-switch "openrouter:$1" && claude
+  fi
+}
+ollama-switch() {
+  if [ -z "$1" ]; then
+    command claude-switch ollama && claude
+  else
+    command claude-switch "ollama:$1" && claude
+  fi
+}
+lmstudio-switch() {
+  command claude-switch lmstudio && claude
+}
 
-# Status and info
-alias cstatus='claude-switch status'
-alias clist='claude-switch list'
-alias cmodels='claude-switch models'
+# Status and info (cs- prefix)
+alias cs-status='claude-switch status'
+alias cs-list='claude-switch list'
+alias cs-models='claude-switch models'
+alias cs-keys='claude-switch keys'
+alias cs-help='claude-switch help'
+alias cs-update='claude-switch update'
+alias cs-wizard='claude-switch wizard'
 
-# Common model-specific switches
-alias ollama7='claude-switch ollama:qwen3-coder:7b'
-alias ollama14='claude-switch ollama:qwen3-coder:14b'
-alias ollama32='claude-switch ollama:qwen3-coder:32b'
+# Ollama quick switches
+alias ollama7='ollama-switch qwen3-coder:7b'
+alias ollama14='ollama-switch qwen3-coder:14b'
+alias ollama32='ollama-switch qwen3-coder:32b'
 EOF
+    fi
 
     # Add to shell config if not already there
     if ! grep -q "source.*$ALIAS_DST" "$SHELL_CONFIG" 2>/dev/null; then
@@ -266,11 +368,15 @@ EOF
     fi
 
     echo -e "${GREEN}✓${NC} Aliases installed to $ALIAS_DST"
-
-    echo -e "${GREEN}✓${NC} Aliases installed to $ALIAS_DST"
+    echo -e "${GREEN}✓${NC} Aliases sourced in $SHELL_CONFIG"
   fi
 else
   echo -e "${GREEN}✓${NC} Aliases are configured"
+fi
+
+# Cleanup temp directory
+if [ "$REMOTE_MODE" = true ] && [ -n "$TEMP_DIR" ]; then
+  rm -rf "$TEMP_DIR"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -284,19 +390,19 @@ echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━
 echo ""
 
 # Check if aliases are loaded in current shell
-if ! type cstatus &>/dev/null; then
+if ! type cs-status &>/dev/null; then
   echo -e "${YELLOW}⚠️  Aliases are not loaded in this session yet.${NC}"
   echo ""
   echo -e "${CYAN}Run this command to load aliases now:${NC}"
-  echo -e "${GREEN}source ~/.claude/aliases.sh${NC}"
+  echo -e "${GREEN}source $ALIAS_DST${NC}"
   echo ""
   echo "Or restart your terminal."
 else
   echo "Aliases are ready to use! Try:"
-  echo -e "  ${CYAN}cstatus${NC}           - Show current config"
-  echo -e "  ${CYAN}clist${NC}             - List providers"
-  echo -e "  ${CYAN}zai${NC}               - Switch to Z.AI"
-  echo -e "  ${CYAN}claude${NC}            - Switch to Claude"
+  echo -e "  ${CYAN}cs-status${NC}           - Show current config"
+  echo -e "  ${CYAN}cs-list${NC}             - List providers"
+  echo -e "  ${CYAN}zai-switch${NC}          - Switch to Z.AI"
+  echo -e "  ${CYAN}claude-switch${NC}       - Switch to Claude"
 fi
 
 echo ""
