@@ -1,8 +1,7 @@
 #!/bin/bash
-VERSION="2.2.0"
+VERSION="2.1.0"
 SETTINGS="$HOME/.claude/settings.json"
 BACKUP_DIR="$HOME/.claude/backups"
-REPO_URL="https://github.com/renatoroquejani/claude-code-switcher"
 
 # Colors
 GREEN=$'\033[0;32m'
@@ -19,53 +18,67 @@ chmod 700 "$BACKUP_DIR"
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # MODEL MAPPING
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Maps Claude Code model tiers (Opus, Sonnet, Haiku) to provider-specific models
 
+# Anthropic Claude (official/OAuth)
 get_anthropic_oauth_models() {
   echo "opus:claude-opus-4-6 sonnet:claude-sonnet-4-5-20250929 haiku:claude-haiku-4-20250920"
 }
 
+# Anthropic API (API key)
 get_anthropic_api_models() {
   echo "opus:claude-opus-4-6 sonnet:claude-sonnet-4-5-20250929 haiku:claude-haiku-4-20250920"
 }
 
+# Z.AI (GLM models)
 get_zai_models() {
+  # GLM-4.7 for Opus/Sonnet (best models), GLM-4.5-Flash for Haiku (fast)
   echo "opus:glm-4.7 sonnet:glm-4.7 haiku:glm-4.5-flash"
 }
 
+# DeepSeek
 get_deepseek_models() {
+  # deepseek-chat (capable), deepseek-coder (coding focused)
   echo "opus:deepseek-chat sonnet:deepseek-chat haiku:deepseek-chat"
 }
 
+# Kimi (Moonshot AI)
 get_kimi_models() {
   echo "opus:moonshot-v1-128k sonnet:moonshot-v1-32k haiku:moonshot-v1-8k"
 }
 
+# Qwen (SiliconFlow)
 get_qwen_models() {
+  # Different sizes of Qwen2.5-Coder
   echo "opus:Qwen/Qwen2.5-Coder-32B-Instruct sonnet:Qwen/Qwen2.5-Coder-14B-Instruct haiku:Qwen/Qwen2.5-Coder-7B-Instruct"
 }
 
+# Groq (fast inference)
 get_groq_models() {
+  # Llama 3.3 70B for Opus/Sonnet, Mixtral 8x7B for Haiku
   echo "opus:llama-3.3-70b-versatile sonnet:llama-3.3-70b-versatile haiku:mixtral-8x7b-32768"
 }
 
-get_together_models() {
-  echo "opus:meta-llama/Llama-3.3-70B-Instruct-Turbo sonnet:meta-llama/Llama-3.3-70B-Instruct-Turbo haiku:mistralai/Mixtral-8x7B-Instruct-v0.1"
-}
-
+# OpenRouter (user specifies model, all tiers use the same)
 get_openrouter_models() {
+  # Model is specified by user, all tiers map to same model
   local model="${OPENROUTER_DEFAULT_MODEL:-anthropic/claude-opus-4.6}"
   echo "opus:$model sonnet:$model haiku:$model"
 }
 
+# Ollama (local, tiered models by default)
 get_ollama_models() {
+  # Qwen3-Coder tiered models (7b is default for local use)
   local installed=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
   local opus="qwen3-coder:32b" sonnet="qwen3-coder:14b" haiku="qwen3-coder:7b"
 
+  # Fallback to available models
   echo "$installed" | grep -q "^${opus}" || opus="$sonnet"
   echo "$installed" | grep -q "^${opus}" || opus="$haiku"
   echo "$installed" | grep -q "^${sonnet}" || sonnet="$opus"
   echo "$installed" | grep -q "^${haiku}" || haiku="$sonnet"
 
+  # If still nothing, use first available
   if [ -z "$opus" ]; then
     opus=$(echo "$installed" | head -1)
     sonnet="$opus"
@@ -75,89 +88,15 @@ get_ollama_models() {
   echo "opus:$opus sonnet:$sonnet haiku:$haiku"
 }
 
+# LM Studio (local, single model for all tiers)
 get_lmstudio_models() {
+  # Uses whatever model is loaded in LM Studio
   echo "opus: sonnet: haiku:"
-}
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# UPDATE FUNCTIONS
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-check_updates() {
-  echo -e "${CYAN}Checking for updates...${NC}"
-  local latest_version
-  latest_version=$(curl -s "https://api.github.com/repos/renatoroquejani/claude-code-switcher/releases/latest" | jq -r '.tag_name // ""' 2>/dev/null)
-
-  if [ -z "$latest_version" ]; then
-    echo -e "${YELLOW}⚠️  Could not check for updates${NC}"
-    echo "Visit $REPO_URL/releases to check manually"
-    return 1
-  fi
-
-  latest_version="${latest_version#v}"
-
-  if [ "$latest_version" = "$VERSION" ]; then
-    echo -e "${GREEN}✓${NC} You're on the latest version: ${BOLD}v${VERSION}${NC}"
-    return 0
-  fi
-
-  echo -e "${YELLOW}New version available:${NC} v${latest_version}"
-  echo -e "${YELLOW}Current version:${NC}     v${VERSION}"
-  echo ""
-  echo "Update with: ${GREEN}claude-switch update${NC}"
-  echo "Or visit: $REPO_URL/releases"
-  return 0
-}
-
-do_update() {
-  local temp_dir
-  temp_dir=$(mktemp -d)
-
-  echo -e "${CYAN}Downloading latest version...${NC}"
-
-  local download_url="$REPO_URL/raw/main/bin/claude-switch"
-  if ! curl -fsSL "$download_url" -o "$temp_dir/claude-switch"; then
-    echo -e "${RED}❌ Failed to download update${NC}"
-    rm -rf "$temp_dir"
-    return 1
-  fi
-
-  chmod +x "$temp_dir/claude-switch"
-
-  local script_path
-  script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-
-  cp "$script_path" "${script_path}.backup"
-  echo -e "${GREEN}✓${NC} Backup created: ${script_path}.backup"
-
-  mv "$temp_dir/claude-switch" "$script_path"
-  rm -rf "$temp_dir"
-
-  echo -e "${GREEN}✓${NC} Updated successfully!"
-  echo ""
-  echo "New version:"
-  bash "$script_path" --version 2>/dev/null || echo "v$(grep '^VERSION=' "$script_path" | cut -d'"' -f2)"
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # DOCUMENTATION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-run_wizard() {
-  local wizard_script="$(dirname "${BASH_SOURCE[0]}")/../scripts/config-wizard.sh"
-
-  if [ ! -f "$wizard_script" ]; then
-    echo -e "${RED}❌ Configuration wizard not found${NC}"
-    echo "Expected location: $wizard_script"
-    return 1
-  fi
-
-  if [ ! -x "$wizard_script" ]; then
-    chmod +x "$wizard_script"
-  fi
-
-  exec bash "$wizard_script"
-}
 
 show_help() {
   echo ""
@@ -168,13 +107,12 @@ show_help() {
   echo ""
   echo -e "${YELLOW}CLOUD PROVIDERS:${NC}"
   echo "  ${GREEN}claude${NC}            Anthropic Claude (OAuth - no API key)"
-  echo "  ${GREEN}anthropic-api${NC}     Anthropic Claude API (requires key)"
+  echo "  ${GREEN}anthropic${NC}         Anthropic Claude API (requires key)"
   echo "  ${GREEN}zai / z.ai${NC}        Z.AI GLM models (4.7, 4.6, 4.5-Flash)"
   echo "  ${GREEN}deepseek${NC}          DeepSeek Chat/Coder"
   echo "  ${GREEN}kimi${NC}              Kimi (Moonshot AI)"
   echo "  ${GREEN}qwen${NC}              Qwen Coder (7B, 14B, 32B)"
   echo "  ${GREEN}groq${NC}              Groq (Llama 3.3, Mixtral)"
-  echo "  ${GREEN}together${NC}          Together AI (Llama, Mixtral, Mistral)"
   echo "  ${GREEN}openrouter${NC}        OpenRouter (requires :model)"
   echo ""
   echo -e "${YELLOW}LOCAL PROVIDERS:${NC}"
@@ -189,22 +127,22 @@ show_help() {
   echo ""
   echo -e "${YELLOW}EXAMPLES:${NC}"
   echo "  claude-switch claude           # Use Anthropic Claude (OAuth)"
-  echo "  claude-switch anthropic-api    # Use Anthropic Claude API (requires key)"
-  echo "  claude-switch zai              # Use Z.AI GLM-4.7"
-  echo "  claude-switch groq             # Use Groq (fast inference)"
-  echo "  claude-switch together         # Use Together AI"
+  echo "  claude-switch anthropic        # Use Anthropic Claude API (requires key)"
+  echo "  claude-switch zai              # Use Z.AI GLM-4.7 (Opus/Sonnet/Haiku mapped)"
   echo "  claude-switch openrouter:qwen/qwen-2.5-coder-32b"
   echo "  claude-switch ollama           # Use local Ollama (qwen3-coder:7b default)"
   echo "  claude-switch ollama:qwen3-coder:14b  # Use specific model"
   echo ""
   echo -e "${YELLOW}SPECIAL COMMANDS:${NC}"
-  echo "  ${GREEN}wizard${NC}            Interactive configuration wizard"
   echo "  ${GREEN}keys${NC}              Show where to get API keys"
   echo "  ${GREEN}list${NC}              List available providers"
   echo "  ${GREEN}status${NC}            Show current configuration"
   echo "  ${GREEN}models <provider>${NC} Show model mapping for provider"
   echo "  ${GREEN}update${NC}            Update to latest version from GitHub"
   echo "  ${GREEN}help${NC}              Show this help"
+  echo ""
+  echo -e "${YELLOW}AVAILABLE ALIASES:${NC}"
+  echo "  claude, anthropic, zai, z.ai, deepseek, kimi, qwen"
   echo ""
 }
 
@@ -235,11 +173,6 @@ show_key_docs() {
   echo "  ${GREEN}Groq:${NC} https://console.groq.com/keys"
   echo "    → Fast inference, generous free tier"
   echo "    → Models: llama-3.3-70b-versatile, mixtral-8x7b-32768"
-  echo ""
-  echo "  ${GREEN}Together AI:${NC} https://api.together.xyz/settings/api-keys"
-  echo "    → Affordable inference with many model options"
-  echo "    → Models: Llama 3.3, Mixtral 8x7B, Mistral 7B"
-  echo ""
   echo "  ${GREEN}OpenRouter:${NC} https://openrouter.ai/keys"
   echo "    → Access to 100+ models, pricing varies"
   echo ""
@@ -263,19 +196,18 @@ list_providers() {
   echo -e "${BOLD}Available Providers:${NC}"
   echo ""
   echo -e "${YELLOW}CLOUD (paid):${NC}"
-  echo "  claude        - Anthropic Claude OAuth (Opus/Sonnet/Haiku)"
-  echo "  anthropic-api - Anthropic Claude API (requires key)"
-  echo "  zai           - Z.AI GLM (4.7/4.6/4.5-Flash)"
-  echo "  deepseek      - DeepSeek Chat/Coder"
-  echo "  kimi          - Kimi (Moonshot AI)"
-  echo "  qwen          - Qwen Coder (32B/14B/7B)"
-  echo "  groq          - Groq (Llama 3.3/Mixtral)"
-  echo "  together      - Together AI (70B/8x7B/7B)"
-  echo "  openrouter    - OpenRouter (100+ models)"
+  echo "  claude     - Anthropic Claude OAuth (Opus/Sonnet/Haiku)"
+  echo "  anthropic  - Anthropic Claude API (requires key)"
+  echo "  zai       - Z.AI GLM (4.7/4.6/4.5-Flash)"
+  echo "  deepseek  - DeepSeek Chat/Coder"
+  echo "  kimi      - Kimi (Moonshot AI)"
+  echo "  qwen      - Qwen Coder (32B/14B/7B)"
+  echo "  groq      - Groq (Llama 3.3/Mixtral)"
+  echo "  openrouter - OpenRouter (100+ models)"
   echo ""
   echo -e "${YELLOW}LOCAL (free):${NC}"
-  echo "  ollama        - Ollama (local GGUF models)"
-  echo "  lmstudio      - LM Studio (GUI)"
+  echo "  ollama    - Ollama (local GGUF models)"
+  echo "  lmstudio  - LM Studio (GUI)"
   echo ""
   echo -e "${YELLOW}Installed Ollama Models:${NC}"
   if command -v ollama &> /dev/null; then
@@ -300,10 +232,10 @@ show_model_mapping() {
   echo -e "${BOLD}Model Mapping for: ${GREEN}$provider${NC}${BOLD}${NC}"
   echo ""
   echo -e "${YELLOW}Claude Code Tier${NC}  →  ${YELLOW}Provider Model${NC}"
-  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
   case "$provider" in
-    claude|anthropic-api)
+    claude|anthropic)
       echo -e "  Opus    →  claude-opus-4-6"
       echo -e "  Sonnet  →  claude-sonnet-4-5-20250929"
       echo -e "  Haiku   →  claude-haiku-4-20250920"
@@ -333,11 +265,46 @@ show_model_mapping() {
       echo -e "  Sonnet  →  llama-3.3-70b-versatile"
       echo -e "  Haiku   →  mixtral-8x7b-32768"
       ;;
-    together)
-      echo -e "  Opus    →  meta-llama/Llama-3.3-70B-Instruct-Turbo"
-      echo -e "  Sonnet  →  mistralai/Mixtral-8x7B-Instruct-v0.1"
-      echo -e "  Haiku   →  mistralai/Mistral-7B-Instruct-v0.2"
+    groq)
+      echo -e "  Opus    →  llama-3.3-70b-versatile"
+      echo -e "  Sonnet  →  llama-3.3-70b-versatile"
+      echo -e "  Haiku   →  mixtral-8x7b-32768"
       ;;
+    groq)
+      validate_key "GROQ_API_KEY" || return 1
+
+      # Clear any stale model settings first
+      clear_all_models
+
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
+      jq --arg token "$GROQ_API_KEY" \
+         '.env.ANTHROPIC_AUTH_TOKEN = $token |
+          .env.ANTHROPIC_BASE_URL = "https://api.groq.com/openai/v1" |
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "mixtral-8x7b-32768"' \
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
+      ;;
+    groq)
+      validate_key "GROQ_API_KEY" || return 1
+
+      # Clear any stale model settings first
+      clear_all_models
+
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
+      jq --arg token "$GROQ_API_KEY" \
+         '.env.ANTHROPIC_AUTH_TOKEN = $token |
+          .env.ANTHROPIC_BASE_URL = "https://api.groq.com/openai/v1" |
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "mixtral-8x7b-32768"' \
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
+      ;;
+
     openrouter)
       local model="${OPENROUTER_DEFAULT_MODEL:-anthropic/claude-opus-4.6}"
       echo -e "  Opus    →  $model"
@@ -350,6 +317,7 @@ show_model_mapping() {
       local installed=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
       local opus="qwen3-coder:32b" sonnet="qwen3-coder:14b" haiku="qwen3-coder:7b"
 
+      # Show what would actually be used (with fallback)
       echo "$installed" | grep -q "^${opus}" || opus="$sonnet"
       echo "$installed" | grep -q "^${opus}" || opus="$haiku"
       echo "$installed" | grep -q "^${sonnet}" || sonnet="$opus"
@@ -387,13 +355,11 @@ get_current_config() {
 
   case "$base_url" in
     "oauth"|"null") echo "claude" ;;
-    *"api.anthropic.com"*) echo "anthropic-api" ;;
     *"z.ai"*) echo "zai" ;;
     *"deepseek"*) echo "deepseek" ;;
     *"moonshot"*) echo "kimi" ;;
     *"siliconflow"*) echo "qwen" ;;
     *"groq"*) echo "groq" ;;
-    *"together"*) echo "together" ;;
     *"openrouter"*) echo "openrouter" ;;
     *"localhost:11434"*|*"127.0.0.1:11434"*) echo "ollama" ;;
     *"localhost:1234"*|*"127.0.0.1:1234"*) echo "lmstudio" ;;
@@ -403,14 +369,52 @@ get_current_config() {
 
 get_friendly_name() {
   case "$1" in
-    claude) echo "Claude (Anthropic OAuth)" ;;
-    anthropic-api) echo "Claude (Anthropic API)" ;;
+    claude|anthropic) echo "Claude (Anthropic)" ;;
     zai|z.ai|glm) echo "Z.AI (GLM)" ;;
     deepseek) echo "DeepSeek" ;;
     kimi) echo "Kimi (Moonshot)" ;;
     qwen) echo "Qwen Coder" ;;
-    groq) echo "Groq" ;;
-    together) echo "Together AI" ;;
+    groq)
+      echo -e "  Opus    →  llama-3.3-70b-versatile"
+      echo -e "  Opus    →  llama-3.3-70b-versatile"
+      echo -e "  Sonnet  →  llama-3.3-70b-versatile"
+      echo -e "  Haiku   →  mixtral-8x7b-32768"
+      ;;
+    groq)
+      validate_key "GROQ_API_KEY" || return 1
+
+      # Clear any stale model settings first
+      clear_all_models
+
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
+      jq --arg token "$GROQ_API_KEY" \
+         '.env.ANTHROPIC_AUTH_TOKEN = $token |
+          .env.ANTHROPIC_BASE_URL = "https://api.groq.com/openai/v1" |
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "mixtral-8x7b-32768"' \
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
+      ;;
+    groq)
+      validate_key "GROQ_API_KEY" || return 1
+
+      # Clear any stale model settings first
+      clear_all_models
+
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
+      jq --arg token "$GROQ_API_KEY" \
+         '.env.ANTHROPIC_AUTH_TOKEN = $token |
+          .env.ANTHROPIC_BASE_URL = "https://api.groq.com/openai/v1" |
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "mixtral-8x7b-32768"' \
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
+      ;;
+
     openrouter) echo "OpenRouter" ;;
     ollama) echo "Ollama (Local)" ;;
     lmstudio) echo "LM Studio (Local)" ;;
@@ -500,18 +504,24 @@ check_lmstudio() {
   return 0
 }
 
+# Validate model name to prevent injection attacks
+# Accepts: alphanumeric, hyphens, underscores, slashes, colons, dots
+# Rejects: shell metacharacters, spaces, special chars
 validate_model_name() {
   local model="$1"
 
+  # Check if empty
   if [ -z "$model" ]; then
-    return 0
+    return 0  # Empty is OK (will use default)
   fi
 
+  # Check length (prevent DoS via ultra-long names)
   if [ ${#model} -gt 255 ]; then
     echo -e "${RED}❌ Model name too long (max 255 characters)${NC}"
     return 1
   fi
 
+  # Validate characters: only allow safe chars
   case "$model" in
     *[!a-zA-Z0-9_\-/:.]*)
       echo -e "${RED}❌ Invalid model name: $model${NC}"
@@ -520,6 +530,7 @@ validate_model_name() {
       ;;
   esac
 
+  # Prevent path traversal attempts
   if [[ "$model" =~ \.\. ]]; then
     echo -e "${RED}❌ Path traversal not allowed${NC}"
     return 1
@@ -532,6 +543,8 @@ validate_model_name() {
 # APPLY CONFIGURATIONS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+# Clear all model-related environment variables
+# This prevents stale model settings from leaking between providers
 clear_all_models() {
   local tmp_settings
   tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
@@ -547,18 +560,28 @@ apply_config() {
   local provider="$1"
   local override_model="$2"
 
+  # Validate model name if provided
   if [ -n "$override_model" ]; then
     validate_model_name "$override_model" || return 1
   fi
 
+  # Normalize provider name
   case "$provider" in
+    anthropic) provider="claude" ;;
     z.ai|glm) provider="zai" ;;
   esac
 
+  # Backup
   cp "$SETTINGS" "$BACKUP_DIR/settings.json.backup-$(date +%Y%m%d-%H%M%S)"
+
+  # Get model mapping for provider
+  local opus_model=""
+  local sonnet_model=""
+  local haiku_model=""
 
   case "$provider" in
     claude)
+      # Official Anthropic - no API key, no model overrides needed
       clear_all_models
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
@@ -567,22 +590,8 @@ apply_config() {
       mv "$tmp_settings" "$SETTINGS"
       ;;
 
-    anthropic-api)
-      validate_key "ANTHROPIC_API_KEY" || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$ANTHROPIC_API_KEY" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.anthropic.com" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "claude-opus-4-6" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-sonnet-4-5-20250929" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "claude-haiku-4-20250920"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
     zai)
+      # Check both ZAI_API_KEY and GLM_API_KEY (legacy name)
       local api_key="${ZAI_API_KEY:-$GLM_API_KEY}"
       if [ -z "$api_key" ]; then
         echo -e "${RED}❌ ZAI_API_KEY (or GLM_API_KEY) not configured${NC}"
@@ -590,22 +599,36 @@ apply_config() {
         echo "Or run: claude-switch keys"
         return 1
       fi
+
+      # Clear any stale model settings first
       clear_all_models
+
+      # Map tiers to Z.AI models
+      opus_model="glm-4.7"
+      sonnet_model="glm-4.7"
+      haiku_model="glm-4.5-flash"
+
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$api_key" \
+         --arg opus "$opus_model" \
+         --arg sonnet "$sonnet_model" \
+         --arg haiku "$haiku_model" \
          '.env.ANTHROPIC_AUTH_TOKEN = $token |
           .env.ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "glm-4.7" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "glm-4.7" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "glm-4.5-flash"' \
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet |
+          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku' \
          "$SETTINGS" > "$tmp_settings"
       mv "$tmp_settings" "$SETTINGS"
       ;;
 
     deepseek)
       validate_key "DEEPSEEK_API_KEY" || return 1
+
+      # Clear any stale model settings first
       clear_all_models
+
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$DEEPSEEK_API_KEY" \
@@ -620,7 +643,10 @@ apply_config() {
 
     kimi)
       validate_key "KIMI_API_KEY" || return 1
+
+      # Clear any stale model settings first
       clear_all_models
+
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$KIMI_API_KEY" \
@@ -635,7 +661,10 @@ apply_config() {
 
     qwen)
       validate_key "SILICONFLOW_API_KEY" || return 1
+
+      # Clear any stale model settings first
       clear_all_models
+
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$SILICONFLOW_API_KEY" \
@@ -649,8 +678,33 @@ apply_config() {
       ;;
 
     groq)
+      echo -e "  Opus    →  llama-3.3-70b-versatile"
+      echo -e "  Sonnet  →  llama-3.3-70b-versatile"
+      echo -e "  Haiku   →  mixtral-8x7b-32768"
+      ;;
+    groq)
       validate_key "GROQ_API_KEY" || return 1
+
+      # Clear any stale model settings first
       clear_all_models
+
+      local tmp_settings
+      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
+      jq --arg token "$GROQ_API_KEY" \
+         '.env.ANTHROPIC_AUTH_TOKEN = $token |
+          .env.ANTHROPIC_BASE_URL = "https://api.groq.com/openai/v1" |
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "llama-3.3-70b-versatile" |
+          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "mixtral-8x7b-32768"' \
+         "$SETTINGS" > "$tmp_settings"
+      mv "$tmp_settings" "$SETTINGS"
+      ;;
+    groq)
+      validate_key "GROQ_API_KEY" || return 1
+
+      # Clear any stale model settings first
+      clear_all_models
+
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$GROQ_API_KEY" \
@@ -663,220 +717,3 @@ apply_config() {
       mv "$tmp_settings" "$SETTINGS"
       ;;
 
-    together)
-      validate_key "TOGETHER_API_KEY" || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$TOGETHER_API_KEY" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.together.xyz/v1" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "mistralai/Mixtral-8x7B-Instruct-v0.1"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    openrouter)
-      validate_key "OPENROUTER_API_KEY" || return 1
-      clear_all_models
-      local opus_model=""
-      if [ -n "$override_model" ]; then
-        opus_model="$override_model"
-      elif [ -n "$OPENROUTER_DEFAULT_MODEL" ]; then
-        opus_model="$OPENROUTER_DEFAULT_MODEL"
-      else
-        echo -e "${RED}❌ No model specified${NC}"
-        echo "Usage: claude-switch openrouter:<model>"
-        echo ""
-        echo "Popular Claude models on OpenRouter:"
-        echo "  anthropic/claude-opus-4.6       (Claude Opus 4.6 - latest)"
-        echo "  anthropic/claude-sonnet-4     (Claude Sonnet 4.5)"
-        echo "  anthropic/claude-haiku-4      (Claude Haiku 4.5)"
-        echo ""
-        echo "Example: claude-switch openrouter:anthropic/claude-opus-4.6"
-        echo ""
-        echo "Or set OPENROUTER_DEFAULT_MODEL in ~/.claude/api-keys.env"
-        return 1
-      fi
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$OPENROUTER_API_KEY" \
-         --arg opus "$opus_model" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://openrouter.ai/api" |
-          .env.ANTHROPIC_API_KEY = "" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $opus |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $opus' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    ollama)
-      check_ollama || return 1
-      clear_all_models
-      local opus_model=""
-      local sonnet_model=""
-      local haiku_model=""
-      local installed_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
-
-      if [ -n "$override_model" ]; then
-        opus_model="${override_model%:latest}"
-        sonnet_model="$opus_model"
-        haiku_model="$opus_model"
-      else
-        opus_model="qwen3-coder:32b"
-        sonnet_model="qwen3-coder:14b"
-        haiku_model="qwen3-coder:7b"
-
-        if ! echo "$installed_models" | grep -q "^${opus_model}"; then
-          opus_model="qwen3-coder:14b"
-        fi
-        if ! echo "$installed_models" | grep -q "^${opus_model}"; then
-          opus_model="qwen3-coder:7b"
-        fi
-        if ! echo "$installed_models" | grep -q "^${opus_model}"; then
-          opus_model=$(echo "$installed_models" | head -1)
-        fi
-
-        if ! echo "$installed_models" | grep -q "^${sonnet_model}"; then
-          sonnet_model="$opus_model"
-        fi
-        if ! echo "$installed_models" | grep -q "^${haiku_model}"; then
-          haiku_model="$sonnet_model"
-        fi
-
-        if [ -z "$opus_model" ]; then
-          echo -e "${RED}❌ No Ollama models installed${NC}"
-          echo "Download models:"
-          echo "  ollama pull qwen3-coder:7b   # Haiku tier (default, fast)"
-          echo "  ollama pull qwen3-coder:14b  # Sonnet tier"
-          echo "  ollama pull qwen3-coder:32b  # Opus tier (if you have RAM)"
-          return 1
-        fi
-      fi
-
-      opus_model="${opus_model%:latest}"
-      sonnet_model="${sonnet_model%:latest}"
-      haiku_model="${haiku_model%:latest}"
-
-      echo -e "${YELLOW}Model mapping:${NC}"
-      echo -e "  Opus   → $opus_model"
-      echo -e "  Sonnet → $sonnet_model"
-      echo -e "  Haiku  → $haiku_model ${CYAN}(default for local)${NC}"
-
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg opus "$opus_model" \
-         --arg sonnet "$sonnet_model" \
-         --arg haiku "$haiku_model" \
-         '.env.ANTHROPIC_AUTH_TOKEN = "ollama" |
-          .env.ANTHROPIC_BASE_URL = "http://localhost:11434" |
-          .env.ANTHROPIC_MODEL = $haiku |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    lmstudio)
-      check_lmstudio || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq '.env.ANTHROPIC_AUTH_TOKEN = "lmstudio" |
-          .env.ANTHROPIC_BASE_URL = "http://localhost:1234/v1"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    *)
-      echo -e "${RED}❌ Unknown provider:${NC} $provider"
-      echo "Run: claude-switch help"
-      return 1
-      ;;
-  esac
-
-  chmod 600 "$SETTINGS"
-  return 0
-}
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# MAIN
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-case "$1" in
-  ""|help|-h|--help) show_help; exit 0 ;;
-  wizard|config) run_wizard; exit 0 ;;
-  keys|docs) show_key_docs; exit 0 ;;
-  list|ls) list_providers; exit 0 ;;
-  status|current) show_status; exit 0 ;;
-  models) show_model_mapping "$2"; exit 0 ;;
-  update) do_update; exit 0 ;;
-  check-updates) check_updates; exit 0 ;;
-  --version) echo "v${VERSION}"; exit 0 ;;
-esac
-
-IFS=':' read -r provider override_model <<< "$1"
-
-if [ -n "$override_model" ]; then
-  validate_model_name "$override_model" || exit 1
-fi
-
-case "$provider" in
-  z.ai|glm) provider="zai" ;;
-esac
-
-current=$(get_current_config)
-current_name=$(get_friendly_name "$current")
-
-echo -e "${YELLOW}Current status:${NC} $current_name"
-
-if [ "$current" = "$provider" ] && [ -z "$override_model" ]; then
-  echo -e "${GREEN}✓${NC} Already configured for $(get_friendly_name "$provider")"
-  exit 0
-fi
-
-target_name=$(get_friendly_name "$provider")
-if [ -n "$override_model" ]; then
-  target_name="$target_name ($override_model)"
-fi
-
-echo -e "${YELLOW}Switch to:${NC} $target_name"
-read -p "Confirm? [y/N] " -n 1 -r
-echo
-
-if [[ ! $REPLY =~ ^[SsYy]$ ]]; then
-  echo "Operation cancelled"
-  exit 0
-fi
-
-if apply_config "$provider" "$override_model"; then
-  echo -e "${GREEN}✅ Configured for $target_name${NC}"
-
-  echo ""
-  echo -e "${BOLD}Model Mapping:${NC}"
-  echo -e "  Opus   → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_OPUS_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
-  echo -e "  Sonnet → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_SONNET_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
-  echo -e "  Haiku  → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_HAIKU_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
-
-  if pgrep -f "node.*claude-code" > /dev/null || pgrep -f "@anthropic-ai/claude-code" > /dev/null; then
-    echo -e "\n${YELLOW}⚠️  Claude Code is running${NC}"
-    read -p "Kill active sessions? [y/N] " -n 1 -r
-    echo
-
-    if [[ $REPLY =~ ^[SsYy]$ ]]; then
-      pkill -f "node.*claude-code" 2>/dev/null
-      pkill -f "@anthropic-ai/claude-code" 2>/dev/null
-      echo -e "${GREEN}✓${NC} Sessions terminated"
-    fi
-  fi
-
-  echo -e "\n${GREEN}✓${NC} Start with: ${BOLD}claude${NC}"
-else
-  echo -e "${RED}❌ Configuration failed${NC}"
-  exit 1
-fi

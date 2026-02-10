@@ -1,0 +1,13 @@
+# Test Fixtures Directory
+
+This directory contains test fixtures used during testing.
+
+Files created during test runs:
+- `test-settings.json` - Main settings file for testing (auto-generated)
+- `backups/` - Backup directory for testing (auto-generated)
+- `.functions.sh` - Temporary file with sourced functions (auto-generated)
+
+## Cleanup
+
+All files in this directory are auto-generated and can be safely deleted.
+Run `make clean-tests` or `rm -rf tests/fixtures/*` to clean.

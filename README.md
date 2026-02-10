@@ -1,23 +1,41 @@
-# 🔄 Claude Code Switcher
+# Claude Code Switcher
 
-> Fast CLI tool to switch Claude Code between LLM providers — supporting cloud and local models
+> Fast CLI tool to switch Claude Code between LLM providers - supporting cloud and local models
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](CHANGELOG.md)
-[![Shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-green.svg)](https://github.com/claude-code-switcher)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](CHANGELOG.md)
+[![Shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-green.svg)](https://github.com/renatoroquejani/claude-code-switcher)
 
-## ✨ Features
+## Features
 
-- 🌐 **Cloud Providers:** Anthropic (Opus), Z.AI (GLM), DeepSeek, Kimi, SiliconFlow (Qwen), OpenRouter
-- 🏠 **Local Providers:** Ollama, LM Studio
-- ⚡ **Instant Switching:** Change models without manual reconfiguration
-- 🔒 **Secure:** API keys stored with restricted permissions (chmod 600)
-- 🎨 **Convenient Aliases:** One-word commands for each provider
-- 💾 **Automatic Backups:** Settings backed up before every switch
+- **Cloud Providers:** Anthropic (Opus), Anthropic API, Z.AI (GLM), DeepSeek, Kimi, SiliconFlow (Qwen), Groq, Together AI, OpenRouter
+- **Local Providers:** Ollama, LM Studio
+- **Instant Switching:** Change models without manual reconfiguration
+- **Interactive Wizard:** Guided setup for first-time users
+- **Auto-Update:** Built-in update mechanism to stay current
+- **Package Management:** Available via AUR (Arch) and Homebrew (macOS)
+- **Secure:** API keys stored with restricted permissions (chmod 600)
+- **Automatic Backups:** Settings backed up before every switch
+- **Convenient Aliases:** One-word commands for each provider
+- **Tested:** Comprehensive test suite with unit and integration tests
 
-## 🚀 Quick Install
+## Quick Install
 
-### Option 1: Install from repository (recommended for development)
+### Option 1: Package Manager (Recommended)
+
+**Arch Linux / AUR:**
+```bash
+yay -S claude-code-switcher
+# or
+paru -S claude-code-switcher
+```
+
+**macOS / Homebrew:**
+```bash
+brew install claude-code-switcher
+```
+
+### Option 2: Install from repository
 
 ```bash
 # Clone the repository
@@ -29,7 +47,7 @@ cd claude-code-switcher
 source ~/.bashrc  # or ~/.zshrc
 ```
 
-### Option 2: Quick curl install
+### Option 3: Quick curl install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main/scripts/install.sh | bash
@@ -42,26 +60,45 @@ source ~/.bashrc  # or ~/.zshrc
 ./scripts/uninstall.sh
 ```
 
-## 📖 Documentation
+## Documentation
 
 - [Setup Guide](docs/SETUP.md) - Installation and configuration
 - [Supported Providers](docs/PROVIDERS.md) - All providers with pricing and setup
 - [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [Release Notes](docs/RELEASE.md) - Version-specific release information
 
-## 🎯 Basic Usage
+## Basic Usage
 
 ```bash
-# Switch to Claude (Anthropic official)
+# Switch to Claude (Anthropic official/OAuth)
 claude-switch claude
+
+# Switch to Anthropic with API key (pay-as-you-go)
+claude-switch anthropic-api
 
 # Switch to Z.AI GLM
 claude-switch zai              # or: claude-switch z.ai
+
+# Switch to Groq (ultra-fast inference)
+claude-switch groq
+
+# Switch to Together AI
+claude-switch together
 
 # Switch to OpenRouter with specific model
 claude-switch openrouter:anthropic/claude-opus-4
 
 # Switch to local Ollama model
-claude-switch ollama:qwen2.5-coder:7b
+claude-switch ollama:qwen3-coder:7b
+
+# Interactive setup wizard
+claude-switch wizard
+
+# Check for updates
+claude-switch check-update
+
+# Update to latest version
+claude-switch update
 
 # Check current status
 claude-switch status
@@ -72,21 +109,27 @@ claude-switch list
 # Show model mapping for a provider
 claude-switch models zai
 
+# Show where to get API keys
+claude-switch keys
+
 # Show help
 claude-switch help
 ```
 
-## 🌐 Supported Providers
+## Supported Providers
 
 ### Cloud (Paid)
 
 | Provider | Command | Pricing | Model Mapping |
 |----------|---------|---------|---------------|
 | Claude | `claude-switch claude` | $20/month (Pro) | Opus/Sonnet/Haiku → Official |
-| Z.AI | `claude-switch zai` | $15/month | Opus→4.7, Sonnet→4.7, Haiku→4.5-Flash |
+| Claude API | `claude-switch anthropic-api` | Per-use | Opus/Sonnet/Haiku → Official |
+| Z.AI | `claude-switch zai` | $15/month | Opus→4.7, Sonnet→4.6, Haiku→4.5-Flash |
 | DeepSeek | `claude-switch deepseek` | $0.14/1M tokens | All tiers → deepseek-chat |
 | Kimi | `claude-switch kimi` | Variable | Opus→128k, Sonnet→32k, Haiku→8k |
 | Qwen | `claude-switch qwen` | $0.42/1M tokens | Opus→32B, Sonnet→14B, Haiku→7B |
+| Groq | `claude-switch groq` | Free tier available | Opus/Sonnet→Llama 3.3 70B, Haiku→Mixtral 8x7B |
+| Together AI | `claude-switch together` | Per-use | User specified |
 | OpenRouter | `claude-switch openrouter:model` | Varies | User specified |
 
 ### Local (Free)
@@ -96,14 +139,14 @@ claude-switch help
 | Ollama | `claude-switch ollama:model` | https://ollama.com |
 | LM Studio | `claude-switch lmstudio` | https://lmstudio.ai |
 
-## 📦 Requirements
+## Requirements
 
 - Claude Code installed: `npm install -g @anthropic-ai/claude-code`
 - `jq` for JSON manipulation: `sudo apt install jq` or `brew install jq`
 - Bash or Zsh shell
 - For local providers: Ollama or LM Studio running
 
-## 🔑 API Keys Setup
+## API Keys Setup
 
 After installation, configure your API keys:
 
@@ -114,8 +157,12 @@ nano ~/.claude/api-keys.env
 # Add your keys (example)
 export ZAI_API_KEY="your-zai-key"
 export DEEPSEEK_API_KEY="your-deepseek-key"
+export KIMI_API_KEY="your-kimi-key"
 export SILICONFLOW_API_KEY="your-siliconflow-key"
+export GROQ_API_KEY="your-groq-key"
+export TOGETHER_API_KEY="your-together-key"
 export OPENROUTER_API_KEY="your-openrouter-key"
+export ANTHROPIC_API_KEY="your-anthropic-key"  # For anthropic-api provider
 
 # Reload shell
 source ~/.bashrc
@@ -123,7 +170,7 @@ source ~/.bashrc
 
 **Where to get API keys:** Run `claude-switch keys` for direct links to each provider.
 
-## 🎨 Shell Aliases
+## Shell Aliases
 
 After installation, you can use convenient aliases (created during install):
 
@@ -140,6 +187,7 @@ lmstudio      # Switch to LM Studio
 cstatus       # Show current status (same as claude-switch status)
 clist         # List all providers
 cmodels       # Show model mapping for a provider
+ckeys         # Show where to get API keys
 
 # Ollama model-specific
 ollama7       # Switch to Ollama with qwen3-coder:7b
@@ -149,7 +197,7 @@ ollama32      # Switch to Ollama with qwen3-coder:32b
 
 **Note:** These aliases are created by the installer when you choose to install them.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 claude-code-switcher/
@@ -161,7 +209,8 @@ claude-code-switcher/
 ├── docs/
 │   ├── SETUP.md               # Installation guide
 │   ├── PROVIDERS.md           # Provider documentation
-│   └── TROUBLESHOOTING.md     # Troubleshooting guide
+│   ├── TROUBLESHOOTING.md     # Troubleshooting guide
+│   └── RELEASE.md             # Release notes
 ├── scripts/
 │   ├── install.sh             # Automated installer
 │   └── uninstall.sh           # Uninstaller
@@ -169,7 +218,7 @@ claude-code-switcher/
     └── test-providers.sh      # Provider tests
 ```
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
@@ -179,7 +228,7 @@ Quick steps:
 3. Commit changes: `git commit -m "feat: add XYZ provider"`
 4. Push and open a Pull Request
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 **"API key not configured"**
 ```bash
@@ -190,7 +239,7 @@ claude-switch status
 **"Ollama model not found"**
 ```bash
 ollama list              # Check installed models
-ollama pull qwen2.5-coder:7b  # Download a model
+ollama pull qwen3-coder:7b  # Download a model
 ollama serve             # Start Ollama server
 ```
 
@@ -206,28 +255,28 @@ source ~/.bashrc
 
 For more troubleshooting, see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
-## 📜 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## 🗺️ Roadmap
+## Roadmap
 
-- [ ] Auto-update via `claude-switch update`
-- [ ] Interactive configuration wizard
 - [ ] Homebrew formula (macOS)
 - [ ] AUR package (Arch Linux)
 - [ ] Support for more providers (Groq, Together AI)
+- [ ] Web-based configuration interface
+- [ ] Usage telemetry (opt-in)
 
-## 📚 Changelog
+## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 Built for the Claude Code community to enable flexible LLM provider switching.
 
 ---
 
-**Made with ❤️ by [Renato Roquejani](https://github.com/renatoroquejani)**
+**Made with love by [Renato Roquejani](https://github.com/renatoroquejani)**
 
-If you find this tool useful, please give it a ⭐ on GitHub!
+If you find this tool useful, please give it a star on GitHub!

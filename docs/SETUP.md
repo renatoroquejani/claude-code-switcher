@@ -1,4 +1,4 @@
-# 📖 Setup Guide
+# Setup Guide
 
 Complete installation and configuration guide for Claude Code Switcher.
 
@@ -7,6 +7,8 @@ Complete installation and configuration guide for Claude Code Switcher.
 - [Prerequisites](#prerequisites)
 - [Quick Install](#quick-install)
 - [Manual Install](#manual-install)
+- [Interactive Wizard](#interactive-wizard)
+- [Auto-Update](#auto-update)
 - [Verification](#verification)
 - [Configuration](#configuration)
 - [Uninstallation](#uninstallation)
@@ -100,6 +102,7 @@ export DEEPSEEK_API_KEY="your-deepseek-key-here"
 export KIMI_API_KEY="your-kimi-key-here"
 export SILICONFLOW_API_KEY="your-siliconflow-key-here"
 export OPENROUTER_API_KEY="your-openrouter-key-here"
+export ANTHROPIC_API_KEY="your-anthropic-key-here"
 
 # Optional: Set default OpenRouter model
 export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
@@ -137,6 +140,112 @@ source /path/to/claude-code-switcher/config/aliases.sh
 
 ---
 
+## Interactive Wizard
+
+New in v2.2.0, the interactive wizard provides step-by-step guidance for first-time setup.
+
+```bash
+claude-switch wizard
+```
+
+The wizard will guide you through:
+
+1. **Welcome Screen**: Introduction to Claude Code Switcher
+2. **Provider Selection**: Choose which providers you want to configure
+3. **API Key Entry**: Enter API keys for selected providers
+4. **Validation**: Verify that API keys are properly formatted
+5. **Test Connection**: Optionally test provider connectivity
+6. **Shell Aliases**: Optionally install convenient shell aliases
+7. **Completion**: Summary of configured providers
+
+### Wizard Features
+
+- **Smart Defaults**: Remembers your choices for future runs
+- **Validation**: Checks API key format before saving
+- **Auto-Detection**: Detects installed local providers (Ollama, LM Studio)
+- **Safe Mode**: Creates backups before modifying any configuration
+
+### Example Wizard Session
+
+```bash
+$ claude-switch wizard
+
+Welcome to Claude Code Switcher setup wizard!
+This wizard will help you configure your LLM providers.
+
+? Which providers would you like to configure? (Space to select, Enter to continue)
+  ☑ Anthropic Claude (OAuth - no API key needed)
+  ☐ Anthropic API (API key required)
+  ☑ Z.AI (GLM models)
+  ☐ DeepSeek
+  ☑ OpenRouter
+
+? Enter your Z.AI API key: ****************************
+? Enter your OpenRouter API key: ****************************
+
+✅ Configuration saved successfully!
+✅ 3 providers configured
+
+Next steps:
+  - Run: claude-switch list
+  - Try: claude-switch zai
+  - Help: claude-switch help
+```
+
+---
+
+## Auto-Update
+
+New in v2.2.0, Claude Code Switcher can automatically check for and install updates.
+
+### Check for Updates
+
+```bash
+claude-switch check-update
+```
+
+This will:
+- Check the latest version available on GitHub
+- Compare with your installed version
+- Inform you if an update is available
+
+### Update to Latest Version
+
+```bash
+claude-switch update
+```
+
+This will:
+- Download the latest version from GitHub
+- Replace the current script
+- Preserve your configuration and API keys
+- Show you what's new in the update
+
+### Automatic Update Checks
+
+You can enable automatic update checks by adding to your `~/.bashrc` or `~/.zshrc`:
+
+```bash
+# Check for updates daily (runs in background)
+if [ -f ~/.local/bin/claude-switch ]; then
+  ~/.local/bin/claude-switch check-update --quiet &
+fi
+```
+
+### Update Channels
+
+By default, updates are pulled from the `main` branch. To use a different channel:
+
+```bash
+# Use development branch
+export CLAUDE_SWITCH_CHANNEL="develop"
+
+# Use specific repository
+export CLAUDE_SWITCH_REPO="your-fork/claude-code-switcher"
+```
+
+---
+
 ## Verification
 
 After installation, verify everything works:
@@ -157,10 +266,13 @@ claude-switch status
 
 Expected output:
 ```
-Claude Code Model Switcher v2.0.0
+Claude Code Model Switcher v2.2.0
 
-Status Atual:
-  Provider: Opus 4.6 (Claude Pro)
+Status:
+  Provider: Anthropic Claude (Opus 4.6)
+  Opus Model: claude-opus-4-6
+  Sonnet Model: claude-sonnet-4-5-20250929
+  Haiku Model: claude-haiku-4-20250920
 ```
 
 ---
@@ -213,12 +325,12 @@ claude-switch openrouter  # Uses default model
 
 3. Download a model:
    ```bash
-   ollama pull qwen2.5-coder:7b
+   ollama pull qwen3-coder:7b
    ```
 
 4. Switch to use it:
    ```bash
-   claude-switch ollama:qwen2.5-coder:7b
+   claude-switch ollama:qwen3-coder:7b
    ```
 
 #### LM Studio
@@ -263,7 +375,7 @@ rm -rf ~/.claude/api-keys.env
 
 - [Browse Supported Providers](PROVIDERS.md) - Learn about all available providers
 - [Troubleshooting](TROUBLESHOOTING.md) - Solve common issues
-- [Usage Examples](README.md#-basic-usage) - See practical examples
+- [Usage Examples](../README.md#-basic-usage) - See practical examples
 
 ---
 

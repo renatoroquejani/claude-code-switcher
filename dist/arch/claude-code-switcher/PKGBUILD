@@ -1,0 +1,20 @@
+# Maintainer: Renato Böhler <renato@renatobohler.com>
+pkgname=claude-code-switcher
+pkgver=2.2.0
+pkgrel=1
+pkgdesc="Bash CLI tool to switch Claude Code between LLM providers"
+arch=("any")
+url="https://github.com/renatobohler/claude-code-switcher"
+license=("MIT")
+depends=("bash" "jq")
+optdepends=("git: for auto-update feature")
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=("")  # Will be updated on release
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 bin/claude-switch "$pkgdir/usr/bin/claude-switch"
+  install -Dm644 config/api-keys.env.example "$pkgdir/etc/claude-code-switcher/api-keys.env.example"
+  install -Dm644 dist/arch/completions.bash "$pkgdir/usr/share/bash-completion/completions/claude-switch"
+  install -Dm644 dist/arch/completions.zsh "$pkgdir/usr/share/zsh/site-functions/_claude-switch"
+}

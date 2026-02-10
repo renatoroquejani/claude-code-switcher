@@ -1,0 +1,14 @@
+pkgbase = claude-code-switcher
+	pkgdesc = Bash CLI tool to switch Claude Code between LLM providers
+	pkgver = 2.2.0
+	pkgrel = 1
+	url = https://github.com/renatobohler/claude-code-switcher
+	arch = any
+	license = MIT
+	depends = bash
+	depends = jq
+	optdepends = git: for auto-update feature
+	source = claude-code-switcher-2.2.0.tar.gz::https://github.com/renatobohler/claude-code-switcher/archive/refs/tags/v2.2.0.tar.gz
+	sha256sums =
+
+pkgname = claude-code-switcher
