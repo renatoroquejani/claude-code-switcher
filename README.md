@@ -21,6 +21,13 @@
 
 ## Quick Install
 
+### Quick curl install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main/scripts/install.sh | bash
+source ~/.bashrc  # or ~/.zshrc
+```
+
 ### Install from repository
 
 ```bash
@@ -30,13 +37,6 @@ cd claude-code-switcher
 
 # Run the installer
 ./scripts/install.sh
-source ~/.bashrc  # or ~/.zshrc
-```
-
-### Quick curl install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main/scripts/install.sh | bash
 source ~/.bashrc  # or ~/.zshrc
 ```
 
