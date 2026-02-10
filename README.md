@@ -13,7 +13,7 @@
 - **Instant Switching:** Change models without manual reconfiguration
 - **Interactive Wizard:** Guided setup for first-time users
 - **Auto-Update:** Built-in update mechanism to stay current
-- **Package Management:** Available via AUR (Arch) and Homebrew (macOS)
+- **Package Management:** Ready for AUR and Homebrew distribution (internal use)
 - **Secure:** API keys stored with restricted permissions (chmod 600)
 - **Automatic Backups:** Settings backed up before every switch
 - **Convenient Aliases:** One-word commands for each provider
@@ -205,12 +205,11 @@ claude-code-switcher/
 │   ├── api-keys.env.example   # API key template
 │   └── aliases.sh              # Shell aliases
 ├── dist/
-│   ├── arch/                  # AUR package (Arch Linux)
-│   └── homebrew/              # Homebrew formula (macOS)
+│   ├── arch/                  # AUR package (internal use)
+│   └── homebrew/              # Homebrew formula (internal use)
 ├── docs/
 │   ├── SETUP.md               # Installation guide
 │   ├── PROVIDERS.md           # Provider documentation
-│   ├── AUR.md                 # AUR installation guide
 │   ├── TROUBLESHOOTING.md     # Troubleshooting guide
 │   └── RELEASE.md             # Release notes
 ├── scripts/
