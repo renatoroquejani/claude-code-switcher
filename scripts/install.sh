@@ -175,15 +175,34 @@ if [ ! -d "$HOME/.claude/backups" ]; then
   chmod 700 "$HOME/.claude/backups"
 fi
 
-# Check PATH
+# Check and add ~/.local/bin to PATH
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
   echo ""
   echo -e "${YELLOW}⚠️  ~/.local/bin is not in your PATH${NC}"
   echo ""
-  echo "Add this to your ~/.bashrc or ~/.zshrc:"
-  echo -e "${GREEN}export PATH=\"\$HOME/.local/bin:\$PATH\"${NC}"
+
+  # Detect shell config file
+  if [ -n "$ZSH_VERSION" ]; then
+    SHELL_CONFIG="$HOME/.zshrc"
+  else
+    SHELL_CONFIG="$HOME/.bashrc"
+  fi
+
+  # Add PATH to shell config if not already there
+  if ! grep -q "PATH.*\.local/bin" "$SHELL_CONFIG" 2>/dev/null; then
+    echo "" >> "$SHELL_CONFIG"
+    echo "# Add ~/.local/bin to PATH (required for claude-switch)" >> "$SHELL_CONFIG"
+    echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$SHELL_CONFIG"
+    echo -e "${GREEN}✓${NC} Added ~/.local/bin to PATH in $SHELL_CONFIG"
+  fi
+
   echo ""
-  echo "Then run: source ~/.bashrc  # or source ~/.zshrc"
+  echo -e "${CYAN}Run this command to activate:${NC}"
+  echo -e "${GREEN}source $SHELL_CONFIG${NC}"
+  echo ""
+  echo "Or restart your terminal."
+else
+  echo -e "${GREEN}✓${NC} ~/.local/bin is already in your PATH"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
