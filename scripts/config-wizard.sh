@@ -373,24 +373,31 @@ create_aliases_file() {
 # Source this file in your ~/.bashrc or ~/.zshrc:
 #   source ~/.claude/aliases.sh
 
-# Quick provider switching
-alias claude='claude-switch claude'
-alias zai='claude-switch zai'
-alias deepseek='claude-switch deepseek'
-alias kimi='claude-switch kimi'
-alias qwen='claude-switch qwen'
-alias ollama-switch='claude-switch ollama'
-alias lmstudio='claude-switch lmstudio'
+# Provider switching (all end with -switch to avoid conflicts)
+claude-switch() { command claude-switch claude && claude; }
+anthropic-api-switch() { command claude-switch anthropic-api && claude; }
+zai-switch() { command claude-switch zai && claude; }
+deepseek-switch() { command claude-switch deepseek && claude; }
+kimi-switch() { command claude-switch kimi && claude; }
+qwen-switch() { command claude-switch qwen && claude; }
+groq-switch() { command claude-switch groq && claude; }
+together-switch() { command claude-switch together && claude; }
+ollama-switch() { command claude-switch ollama && claude; }
+lmstudio-switch() { command claude-switch lmstudio && claude; }
 
-# Status and info
-alias cstatus='claude-switch status'
-alias clist='claude-switch list'
-alias cmodels='claude-switch models'
+# Status and info (cs- prefix)
+alias cs-status='claude-switch status'
+alias cs-list='claude-switch list'
+alias cs-models='claude-switch models'
+alias cs-keys='claude-switch keys'
+alias cs-help='claude-switch help'
+alias cs-update='claude-switch update'
+alias cs-wizard='claude-switch wizard'
 
-# Common model-specific switches
-alias ollama7='claude-switch ollama:qwen3-coder:7b'
-alias ollama14='claude-switch ollama:qwen3-coder:14b'
-alias ollama32='claude-switch ollama:qwen3-coder:32b'
+# Ollama quick switches
+alias ollama7='ollama-switch qwen3-coder:7b'
+alias ollama14='ollama-switch qwen3-coder:14b'
+alias ollama32='ollama-switch qwen3-coder:32b'
 EOF
 }
 

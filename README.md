@@ -171,25 +171,40 @@ source ~/.bashrc
 
 After installation, you can use convenient aliases (created during install):
 
+**Provider Switching (all end with `-switch` to avoid conflicts):**
+
 ```bash
-claude        # Switch to Claude (Anthropic)
-zai           # Switch to Z.AI
-deepseek      # Switch to DeepSeek
-kimi          # Switch to Kimi
-qwen          # Switch to Qwen
-ollama        # Switch to Ollama
-lmstudio      # Switch to LM Studio
+claude-switch              # Switch to Anthropic (OAuth)
+anthropic-api-switch      # Switch to Anthropic (API key)
+zai-switch                 # Switch to Z.AI
+deepseek-switch            # Switch to DeepSeek
+kimi-switch                # Switch to Kimi
+qwen-switch                # Switch to Qwen
+groq-switch                # Switch to Groq
+together-switch            # Switch to Together AI
+openrouter-switch          # Switch to OpenRouter
+ollama-switch [model]      # Switch to Ollama
+lmstudio-switch            # Switch to LM Studio
+```
 
-# Status and info
-cstatus       # Show current status (same as claude-switch status)
-clist         # List all providers
-cmodels       # Show model mapping for a provider
-ckeys         # Show where to get API keys
+**Status & Info (prefixed with `cs-`):**
 
-# Ollama model-specific
-ollama7       # Switch to Ollama with qwen3-coder:7b
-ollama14      # Switch to Ollama with qwen3-coder:14b
-ollama32      # Switch to Ollama with qwen3-coder:32b
+```bash
+cs-status    # Show current status
+cs-list      # List all providers
+cs-models    # Show model mapping
+cs-keys      # Show where to get API keys
+cs-help      # Show help
+cs-update    # Update to latest version
+cs-wizard    # Run configuration wizard
+```
+
+**Ollama Quick Switches:**
+
+```bash
+ollama7     # Switch to Ollama with qwen3-coder:7b
+ollama14    # Switch to Ollama with qwen3-coder:14b
+ollama32    # Switch to Ollama with qwen3-coder:32b
 ```
 
 **Note:** These aliases are created by the installer when you choose to install them.

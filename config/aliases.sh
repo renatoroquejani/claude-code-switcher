@@ -4,31 +4,58 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #
 # Add to your ~/.bashrc or ~/.zshrc:
-# source /path/to/claude-code-switcher/config/aliases.sh
+# source ~/.claude/aliases.sh
 #
-
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# PROVIDER ALIASES
+# CLOUD PROVIDERS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Anthropic Claude (official)
-alias claude='claude-switch claude && claude'
+# Anthropic Claude (OAuth/Pro)
+claude-switch() {
+  command claude-switch claude && claude
+}
 
-# Z.AI (both aliases work)
-alias zai='claude-switch zai && claude'
-alias z.ai='claude-switch zai && claude'
+# Anthropic Claude (API key)
+anthropic-api-switch() {
+  command claude-switch anthropic-api && claude
+}
 
-# Other cloud providers
-alias deepseek='claude-switch deepseek && claude'
-alias kimi='claude-switch kimi && claude'
-alias qwen='claude-switch qwen && claude'
+# Z.AI
+zai-switch() {
+  command claude-switch zai && claude
+}
 
-# OpenRouter with dynamic model
-openrouter() {
+# DeepSeek
+deepseek-switch() {
+  command claude-switch deepseek && claude
+}
+
+# Kimi
+kimi-switch() {
+  command claude-switch kimi && claude
+}
+
+# Qwen
+qwen-switch() {
+  command claude-switch qwen && claude
+}
+
+# Groq
+groq-switch() {
+  command claude-switch groq && claude
+}
+
+# Together AI
+together-switch() {
+  command claude-switch together && claude
+}
+
+# OpenRouter (with optional model)
+openrouter-switch() {
   if [ -z "$1" ]; then
-    claude-switch openrouter && claude
+    command claude-switch openrouter && claude
   else
-    claude-switch "openrouter:$1" && claude
+    command claude-switch "openrouter:$1" && claude
   fi
 }
 
@@ -36,33 +63,36 @@ openrouter() {
 # LOCAL PROVIDERS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Ollama with optional model
-ollama-claude() {
+# Ollama (with optional model)
+ollama-switch() {
   if [ -z "$1" ]; then
-    claude-switch ollama && claude
+    command claude-switch ollama && claude
   else
-    claude-switch "ollama:$1" && claude
+    command claude-switch "ollama:$1" && claude
   fi
 }
 
 # LM Studio
-alias lmstudio-claude='claude-switch lmstudio && claude'
+lmstudio-switch() {
+  command claude-switch lmstudio && claude
+}
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# UTILITY ALIASES
+# STATUS & INFO
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Shortcuts for claude-switch
-alias ccs='claude-switch'
-alias ccs-status='claude-switch status'
-alias ccs-list='claude-switch list'
-alias ccs-keys='claude-switch keys'
-alias ccs-models='claude-switch models'
+alias cs-status='claude-switch status'
+alias cs-list='claude-switch list'
+alias cs-models='claude-switch models'
+alias cs-keys='claude-switch keys'
+alias cs-help='claude-switch help'
+alias cs-update='claude-switch update'
+alias cs-wizard='claude-switch wizard'
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# LEGACY ALIASES (for backward compatibility)
+# CONVENIENCE ALIASES (Ollama models)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# These still work but map to new provider names
-alias opus='claude-switch claude && claude'
-alias glm='claude-switch zai && claude'
+alias ollama7='ollama-switch qwen3-coder:7b'
+alias ollama14='ollama-switch qwen3-coder:14b'
+alias ollama32='ollama-switch qwen3-coder:32b'
