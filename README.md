@@ -94,9 +94,6 @@ claude-switch ollama:qwen3-coder:7b
 # Interactive setup wizard
 claude-switch wizard
 
-# Check for updates
-claude-switch check-update
-
 # Update to latest version
 claude-switch update
 
@@ -206,16 +203,24 @@ claude-code-switcher/
 ├── config/
 │   ├── api-keys.env.example   # API key template
 │   └── aliases.sh              # Shell aliases
+├── dist/
+│   ├── arch/                  # AUR package (Arch Linux)
+│   └── homebrew/              # Homebrew formula (macOS)
 ├── docs/
 │   ├── SETUP.md               # Installation guide
 │   ├── PROVIDERS.md           # Provider documentation
+│   ├── AUR.md                 # AUR installation guide
 │   ├── TROUBLESHOOTING.md     # Troubleshooting guide
 │   └── RELEASE.md             # Release notes
 ├── scripts/
 │   ├── install.sh             # Automated installer
-│   └── uninstall.sh           # Uninstaller
+│   ├── uninstall.sh           # Uninstaller
+│   ├── config-wizard.sh       # Interactive setup wizard
+│   └── update.sh              # Auto-update script
 └── tests/
-    └── test-providers.sh      # Provider tests
+    ├── test-suite.sh          # Main test runner
+    ├── unit/                  # Unit tests
+    └── integration/           # Integration tests
 ```
 
 ## Contributing
@@ -261,10 +266,18 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Roadmap
 
-- [ ] Homebrew formula (macOS)
-- [ ] AUR package (Arch Linux)
-- [ ] Support for more providers (Groq, Together AI)
+Completed in v2.2.0:
+- [x] Homebrew formula (macOS)
+- [x] AUR package (Arch Linux)
+- [x] Groq provider support
+- [x] Together AI provider support
+- [x] Interactive configuration wizard
+- [x] Auto-update functionality
+- [x] Comprehensive test suite
+
+Future plans:
 - [ ] Web-based configuration interface
+- [ ] Support for more providers (Mistral, Cohere)
 - [ ] Usage telemetry (opt-in)
 
 ## Changelog
