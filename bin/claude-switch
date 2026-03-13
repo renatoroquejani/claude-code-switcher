@@ -7,6 +7,7 @@ SWITCHER_STATE_ROOT="${CLAUDE_SWITCHER_HOME:-${SWITCHER_STATE_ROOT:-$HOME/.claud
 INSTANCES_DIR="${SWITCHER_INSTANCES_DIR:-$SWITCHER_STATE_ROOT/instances}"
 ACCOUNTS_FILE="${ACCOUNTS_FILE:-$SWITCHER_STATE_ROOT/accounts.json}"
 STATE_FILE="${STATE_FILE:-$SWITCHER_STATE_ROOT/state.json}"
+API_KEYS_FILE="${API_KEYS_FILE:-$LEGACY_CLAUDE_DIR/api-keys.env}"
 PROVIDERS_FILE="${CLAUDE_SWITCHER_PROVIDERS_FILE:-$SWITCHER_STATE_ROOT/providers.json}"
 CUSTOM_PROVIDERS_FILE="${CLAUDE_SWITCHER_CUSTOM_PROVIDERS_FILE:-$SWITCHER_STATE_ROOT/custom-providers.json}"
 PROFILES_FILE="${CLAUDE_SWITCHER_PROFILES_FILE:-$SWITCHER_STATE_ROOT/profiles.json}"
@@ -244,7 +245,8 @@ resolve_provider_auth_token() {
 
   while IFS= read -r env_name; do
     [ -z "$env_name" ] && continue
-    local env_value="${!env_name:-}"
+    local env_value
+    env_value=$(resolve_configured_env_value "$env_name")
     if [ -n "$env_value" ]; then
       printf '%s\n' "$env_value"
       return 0
@@ -252,6 +254,64 @@ resolve_provider_auth_token() {
   done < <(jq -sr --arg provider "$provider" \
     '((.[0].providers // {}) + (.[1].providers // {}))[$provider].auth_env[]? // empty' \
     "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)
+
+  return 1
+}
+
+resolve_configured_env_value() {
+  local var_name="$1"
+  local env_value="${!var_name:-}"
+
+  if [ -n "$env_value" ]; then
+    printf '%s\n' "$env_value"
+    return 0
+  fi
+
+  read_env_file_value "$var_name"
+}
+
+read_env_file_value() {
+  local var_name="$1"
+  local line
+  local key_name
+  local raw_value
+
+  [ -f "$API_KEYS_FILE" ] || return 1
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+
+    if [[ "$line" =~ ^[[:space:]]*export[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]]; then
+      key_name="${BASH_REMATCH[1]}"
+      raw_value="${BASH_REMATCH[2]}"
+    elif [[ "$line" =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=(.*)$ ]]; then
+      key_name="${BASH_REMATCH[1]}"
+      raw_value="${BASH_REMATCH[2]}"
+    else
+      continue
+    fi
+
+    [ "$key_name" = "$var_name" ] || continue
+
+    raw_value="${raw_value#"${raw_value%%[![:space:]]*}"}"
+    raw_value="${raw_value%"${raw_value##*[![:space:]]}"}"
+
+    if [[ "$raw_value" =~ ^\"(.*)\"$ ]]; then
+      printf '%s\n' "${BASH_REMATCH[1]}"
+      return 0
+    fi
+
+    if [[ "$raw_value" =~ ^\'(.*)\'$ ]]; then
+      printf '%s\n' "${BASH_REMATCH[1]}"
+      return 0
+    fi
+
+    raw_value="${raw_value%%[[:space:]]#*}"
+    raw_value="${raw_value%"${raw_value##*[![:space:]]}"}"
+    printf '%s\n' "$raw_value"
+    return 0
+  done < "$API_KEYS_FILE"
 
   return 1
 }
@@ -2514,11 +2574,12 @@ run_doctor() {
 
 validate_key() {
   local key_name="$1"
-  local key_value="${!key_name}"
+  local key_value
+  key_value=$(resolve_configured_env_value "$key_name")
 
   if [ -z "$key_value" ]; then
     echo -e "${RED}❌ $key_name not configured${NC}"
-    echo "Configure it in: ~/.claude/api-keys.env"
+    echo "Configure it in: $API_KEYS_FILE"
     echo "Or run: claude-switch keys"
     return 1
   fi
@@ -2665,7 +2726,7 @@ apply_catalog_provider() {
       '((.[0].providers // {}) + (.[1].providers // {}))[$provider].auth_env[0] // "API_KEY"' \
       "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)
     echo -e "${RED}❌ ${first_env} not configured${NC}"
-    echo "Configure it in: ~/.claude/api-keys.env"
+    echo "Configure it in: $API_KEYS_FILE"
     echo "Or run: claude-switch keys"
     return 1
   fi
@@ -2711,7 +2772,7 @@ apply_catalog_provider() {
         echo ""
         echo "Example: claude-switch openrouter:anthropic/claude-opus-4.6"
         echo ""
-        echo "Or set OPENROUTER_DEFAULT_MODEL in ~/.claude/api-keys.env"
+        echo "Or set OPENROUTER_DEFAULT_MODEL in $API_KEYS_FILE"
         rm -f "$tmp_settings"
         return 1
       fi

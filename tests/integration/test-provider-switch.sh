@@ -104,6 +104,23 @@ EOF
     rm -rf "$temp_home"
 }
 
+test_switch_reads_provider_key_from_api_keys_file_without_shell_source() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    cat > "$temp_home/.claude/api-keys.env" << 'EOF'
+# Keys loaded from file only
+export ZAI_API_KEY="file-zai-key"
+EOF
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" --yes zai > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_AUTH_TOKEN' "file-zai-key" "Switch should read provider keys directly from api-keys.env" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "Switch should still apply the selected provider mapping" || return 1
+
+    rm -rf "$temp_home"
+}
+
 test_provider_catalog_drives_model_presets() {
     local temp_home
     local temp_config
