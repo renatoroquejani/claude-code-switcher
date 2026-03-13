@@ -8,6 +8,7 @@ SCRIPT_NAME="claude-switch"
 BIN_DST="$HOME/.local/bin/$SCRIPT_NAME"
 ALIAS_FILE="$HOME/.claude/aliases.sh"
 CONFIG_DIR="$HOME/.claude"
+SWITCHER_STATE_DIR="$HOME/.claude-switcher"
 
 # Colors
 GREEN=$'\033[0;32m'
@@ -42,7 +43,9 @@ echo ""
 echo -e "${YELLOW}This will remove:${NC}"
 echo "  - $BIN_DST"
 echo "  - $ALIAS_FILE"
-echo -e "\n${RED}Note: Your API keys ($CONFIG_DIR/api-keys.env) will be kept.${NC}"
+echo -e "\n${GREEN}This will keep:${NC}"
+echo "  - $CONFIG_DIR (Claude Code settings, projects, backups, and API keys)"
+echo "  - $SWITCHER_STATE_DIR (unless you explicitly remove it below)"
 echo ""
 if ! confirm_prompt "Continue? [y/N] "; then
   echo "Uninstall cancelled"
@@ -80,14 +83,14 @@ if [ -f "$SHELL_CONFIG" ] && grep -q "source.*$ALIAS_FILE" "$SHELL_CONFIG" 2>/de
   echo -e "${GREEN}✓${NC} Removed"
 fi
 
-# Ask about config directory
+# Ask about switcher state directory
 echo ""
-if confirm_prompt "Remove entire ~/.claude directory? ${RED}(This will delete backups and API keys!)${NC} [y/N] "; then
-  echo -e "${CYAN}Removing $CONFIG_DIR...${NC}"
-  rm -rf "$CONFIG_DIR"
+if confirm_prompt "Remove ~/.claude-switcher state directory? ${RED}(This removes saved accounts, profiles, custom providers, and switcher-managed runtime state)${NC} [y/N] "; then
+  echo -e "${CYAN}Removing $SWITCHER_STATE_DIR...${NC}"
+  rm -rf "$SWITCHER_STATE_DIR"
   echo -e "${GREEN}✓${NC} Removed"
 else
-  echo -e "${YELLOW}Keeping $CONFIG_DIR${NC}"
+  echo -e "${YELLOW}Keeping $SWITCHER_STATE_DIR${NC}"
 fi
 
 echo ""

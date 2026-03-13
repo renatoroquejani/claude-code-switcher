@@ -43,6 +43,8 @@ source ~/.bashrc  # or ~/.zshrc
 ./scripts/uninstall.sh
 ```
 
+The uninstaller preserves your existing `~/.claude` Claude Code configuration and only offers removal of `~/.claude-switcher` state.
+
 ## Documentation
 
 - [Setup Guide](docs/SETUP.md) - Installation and configuration

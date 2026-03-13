@@ -348,7 +348,10 @@ claude-switch openrouter  # Uses default model
 
 ## Uninstallation
 
-To completely remove Claude Code Switcher:
+The uninstall script removes the `claude-switch` binary, `~/.claude/aliases.sh`, and the shell sourcing entry it added.
+
+It keeps your existing `~/.claude` Claude Code configuration intact.
+It can optionally remove `~/.claude-switcher`, which contains switcher-managed accounts, profiles, custom providers, and isolated runtime state.
 
 ### Using the Uninstall Script
 
@@ -362,8 +365,11 @@ curl -fsSL https://raw.githubusercontent.com/renatoroquejani/claude-code-switche
 # Remove the script
 rm ~/.local/bin/claude-switch
 
-# Remove configuration (optional - keeps your API keys)
-rm -rf ~/.claude/api-keys.env
+# Remove switcher-managed state (optional)
+rm -rf ~/.claude-switcher
+
+# Remove aliases file (optional)
+rm -f ~/.claude/aliases.sh
 
 # Remove aliases from ~/.bashrc or ~/.zshrc
 # Edit the file and remove the claude-switch section
