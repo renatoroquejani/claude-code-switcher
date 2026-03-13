@@ -350,7 +350,7 @@ claude-switch openrouter  # Uses default model
 
 The uninstall script removes the `claude-switch` binary, `~/.claude/aliases.sh`, and the shell sourcing entry it added.
 
-It keeps your existing `~/.claude` Claude Code configuration intact.
+It preserves your existing `~/.claude` Claude Code directory and creates a backup before cleaning only the provider-routing keys managed by `claude-switcher` from `~/.claude/settings.json`.
 It can optionally remove `~/.claude-switcher`, which contains switcher-managed accounts, profiles, custom providers, and isolated runtime state.
 
 ### Using the Uninstall Script
@@ -370,6 +370,9 @@ rm -rf ~/.claude-switcher
 
 # Remove aliases file (optional)
 rm -f ~/.claude/aliases.sh
+
+# Clean claude-switcher-managed routing keys from ~/.claude/settings.json manually if needed
+# (ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL, ANTHROPIC_MODEL, ANTHROPIC_DEFAULT_*)
 
 # Remove aliases from ~/.bashrc or ~/.zshrc
 # Edit the file and remove the claude-switch section
