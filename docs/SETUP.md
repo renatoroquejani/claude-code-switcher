@@ -266,7 +266,7 @@ claude-switch status
 
 Expected output:
 ```
-Claude Code Model Switcher v2.2.0
+Claude Code Model Switcher v2.3.0
 
 Status:
   Provider: Anthropic Claude (Opus 4.6)

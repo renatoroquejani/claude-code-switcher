@@ -3,7 +3,7 @@
 > Fast CLI tool to switch Claude Code between LLM providers - supporting cloud and local models
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](CHANGELOG.md)
 [![Shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-green.svg)](https://github.com/renatoroquejani/claude-code-switcher)
 
 ## Features
@@ -357,12 +357,14 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Roadmap
 
-Completed in v2.2.0:
-- [x] Groq provider support
-- [x] Together AI provider support
-- [x] Interactive configuration wizard
-- [x] Auto-update functionality
-- [x] Comprehensive test suite
+Completed in v2.3.0:
+- [x] Multi-account Claude runtimes
+- [x] Account login/import/test flows
+- [x] `exec` launcher with isolated runtime selection
+- [x] Global and project-scoped switching
+- [x] `doctor` diagnostics and JSON output
+- [x] Versioned provider catalog with `update-config`
+- [x] Named profiles and custom providers
 
 Future plans:
 - [ ] Web-based configuration interface

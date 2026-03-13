@@ -2,6 +2,62 @@
 
 Version-specific release information for Claude Code Switcher.
 
+## [2.3.0] - 2026-03-13
+
+### What's New
+
+This release adds account-aware Claude runtimes, project-scoped switching, diagnostics, provider catalog updates, named profiles, and declarative custom providers.
+
+### New Features
+
+#### Multi-Account Claude Runtimes
+- `claude-switch account create/use/list/current/rename/delete`
+- isolated runtime directories per account under `~/.claude-switcher/instances`
+- automatic registration of the existing `~/.claude` setup as the `default` legacy account
+
+#### Claude Account Workflows
+- `claude-switch account login <name>`
+- `claude-switch account test <name>`
+- `claude-switch account import-current <name>`
+
+#### Account-Aware Launcher
+- `claude-switch exec [provider] -- [args]`
+- launches Claude with the correct `CLAUDE_CONFIG_DIR`
+- optional provider switch before launch
+
+#### Project Scope
+- `claude-switch global <provider>`
+- `claude-switch project <provider>`
+- `claude-switch reset project`
+- `claude-switch where`
+
+#### Diagnostics and Catalog Updates
+- `claude-switch doctor`
+- `claude-switch doctor --json`
+- `claude-switch update-config`
+
+#### Profiles and Custom Providers
+- `claude-switch profile save/use/list/delete`
+- `claude-switch provider add/list/delete`
+
+### Improvements
+
+- Z.AI now uses provider-managed mapping
+- profile save shows an explicit summary and safer overwrite behavior
+- installer initializes profile and custom-provider registries
+- aliases include shortcuts for accounts, profiles, providers, and `update-config`
+
+### Upgrade Instructions
+
+```bash
+claude-switch update
+claude-switch update-config
+
+# Or reinstall from the repository
+./scripts/install.sh
+source ~/.bashrc
+```
+
 ## [2.2.0] - 2025-02-10
 
 ### What's New
@@ -198,6 +254,7 @@ Major release with multi-provider support and enhanced UX.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.3.0 | 2026-03-13 | Multi-account runtimes, exec launcher, project scope, doctor, provider catalog, profiles, custom providers |
 | 2.2.0 | 2025-02-10 | Wizard, auto-update, Anthropic API, Groq, Together AI, AUR, Homebrew, test suite |
 | 2.1.0 | 2025-02-09 | Model mapping display, enhanced help, Ollama auto-detection |
 | 2.0.0 | 2025-02-09 | Multi-provider support, backups, shell aliases |

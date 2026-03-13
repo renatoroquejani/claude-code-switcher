@@ -12,6 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Usage telemetry (opt-in)
 - Support for additional providers (Mistral, Cohere)
 
+## [2.3.0] - 2026-03-13
+
+### Added
+- Multi-account Claude runtime isolation with account registry and isolated state directories
+- `account login`, `account test`, and `account import-current` for managing separate Claude sessions
+- `claude-switch exec` to launch Claude with the active account runtime and optional pre-launch provider switching
+- Project-scoped configuration commands: `global`, `project`, `reset project`, and `where`
+- `doctor` and `doctor --json` for environment and state diagnostics
+- Versioned provider catalog via `config/providers.json` and `claude-switch update-config`
+- Named profiles with `profile save/use/list/delete`
+- Declarative custom providers with `provider add/list/delete`
+
+### Changed
+- Z.AI now uses provider-managed tier mapping instead of hardcoded Claude tier aliases
+- Installer initializes provider, profile, and custom-provider state under `~/.claude-switcher`
+- Help, status, and README output now include account/scope-aware details
+
+### Fixed
+- Legacy Z.AI configurations are normalized by removing stale `ANTHROPIC_DEFAULT_*` overrides
+- `update-config` now falls back to the local checkout copy when the remote catalog is unavailable during development
+- `profile save` now requires confirmation on overwrite and supports `--provider` validation
+
 ## [2.2.0] - 2025-02-10
 
 ### Added
@@ -97,6 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.3.0 | 2026-03-13 | Multi-account runtimes, exec launcher, project scope, doctor, provider catalog, profiles, custom providers |
 | 2.2.0 | 2025-02-10 | Wizard, auto-update, Anthropic API, Groq, Together AI, AUR, Homebrew, test suite |
 | 2.1.0 | 2025-02-09 | Model mapping display, enhanced help, Ollama auto-detection |
 | 2.0.0 | 2025-02-09 | Multi-provider support, backups, shell aliases |

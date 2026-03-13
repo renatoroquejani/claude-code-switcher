@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="2.2.0"
+VERSION="2.3.0"
 REPO_URL="https://github.com/renatoroquejani/claude-code-switcher"
 RAW_BASE_URL="${CLAUDE_SWITCHER_UPDATE_BASE_URL:-https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main}"
 LEGACY_CLAUDE_DIR="${CLAUDE_HOME:-${LEGACY_CLAUDE_DIR:-$HOME/.claude}}"
