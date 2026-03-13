@@ -285,29 +285,30 @@ if [ ! -f "$CONFIG_DST" ]; then
 # Usage: Run 'claude-switch keys' to see where to get API keys
 
 # Z.AI (GLM models)
-#ZAI_API_KEY="your-key-here"
+#export ZAI_API_KEY="your-key-here"
+#export GLM_API_KEY="your-key-here"
 
 # DeepSeek
-#DEEPSEEK_API_KEY="your-key-here"
+#export DEEPSEEK_API_KEY="your-key-here"
 
 # Kimi (Moonshot AI)
-#KIMI_API_KEY="your-key-here"
+#export KIMI_API_KEY="your-key-here"
 
 # Qwen (SiliconFlow)
-#SILICONFLOW_API_KEY="your-key-here"
+#export SILICONFLOW_API_KEY="your-key-here"
 
 # Groq
-#GROQ_API_KEY="your-key-here"
+#export GROQ_API_KEY="your-key-here"
 
 # Together AI
-#TOGETHER_API_KEY="your-key-here"
+#export TOGETHER_API_KEY="your-key-here"
 
 # OpenRouter
-#OPENROUTER_API_KEY="your-key-here"
-#OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
+#export OPENROUTER_API_KEY="your-key-here"
+#export OPENROUTER_DEFAULT_MODEL="anthropic/claude-opus-4.6"
 
 # Anthropic API (pay-as-you-go)
-#ANTHROPIC_API_KEY="your-key-here"
+#export ANTHROPIC_API_KEY="your-key-here"
 EOF
 
   chmod 600 "$CONFIG_DST"
