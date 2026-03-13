@@ -43,12 +43,19 @@ NC=$'\033[0m'
 # Track what needs to be done
 NEEDS_UPDATE=false
 NEEDS_ALIASES=false
+INSTALL_ALIASES="prompt"
 
 echo ""
 echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BOLD}  Claude Code Switcher v${VERSION} - Smart Installer${NC}"
 echo -e "${BOLD}${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
+
+if [ -n "${CLAUDE_SWITCH_INSTALL_ALIASES:-}" ]; then
+  INSTALL_ALIASES="$CLAUDE_SWITCH_INSTALL_ALIASES"
+elif [ ! -t 0 ]; then
+  INSTALL_ALIASES="yes"
+fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # DOWNLOAD FUNCTIONS (for remote installation)
@@ -350,9 +357,26 @@ fi
 # Offer to install/update aliases
 if [ "$NEEDS_ALIASES" = true ]; then
   echo ""
-  read -p "Install shell aliases for quick switching? [y/N] " -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[SsYy]$ ]]; then
+  local_install_aliases="false"
+
+  case "$INSTALL_ALIASES" in
+    1|true|yes|y)
+      local_install_aliases="true"
+      echo -e "${CYAN}Installing shell aliases automatically${NC}"
+      ;;
+    0|false|no|n)
+      echo -e "${YELLOW}⚠️  Skipping alias installation by configuration${NC}"
+      ;;
+    *)
+      read -p "Install shell aliases for quick switching? [y/N] " -n 1 -r
+      echo
+      if [[ $REPLY =~ ^[SsYy]$ ]]; then
+        local_install_aliases="true"
+      fi
+      ;;
+  esac
+
+  if [ "$local_install_aliases" = "true" ]; then
     # Use downloaded aliases if available, otherwise create default
     if [ -n "$ALIASES_SRC" ] && [ -f "$ALIASES_SRC" ]; then
       cp "$ALIASES_SRC" "$ALIAS_DST"
@@ -431,6 +455,8 @@ EOF
 
     echo -e "${GREEN}✓${NC} Aliases installed to $ALIAS_DST"
     echo -e "${GREEN}✓${NC} Aliases sourced in $SHELL_CONFIG"
+  else
+    echo -e "${YELLOW}⚠️  Aliases were not installed${NC}"
   fi
 else
   echo -e "${GREEN}✓${NC} Aliases are configured"
