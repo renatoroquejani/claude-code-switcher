@@ -469,6 +469,29 @@ test_clear_stale_models() {
     unset ZAI_API_KEY
 }
 
+test_switch_clears_stale_provider_connection_fields() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    cat > "$temp_home/.claude/settings.json" << 'EOF'
+{
+  "env": {
+    "ANTHROPIC_API_KEY": "stale-api-key",
+    "ANTHROPIC_AUTH_TOKEN": "stale-auth-token",
+    "ANTHROPIC_BASE_URL": "https://stale.example/api"
+  }
+}
+EOF
+
+    HOME="$temp_home" ZAI_API_KEY="test-key" bash "$PROJECT_DIR/bin/claude-switch" --yes zai > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_AUTH_TOKEN' "test-key" "Switch should set the current provider auth token" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "Switch should set the current provider base URL" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_API_KEY // "null"' "null" "Switch should clear stale ANTHROPIC_API_KEY from previous providers" || return 1
+
+    rm -rf "$temp_home"
+}
+
 create_test_home() {
     local temp_home
     temp_home=$(mktemp -d)
@@ -496,6 +519,21 @@ create_mock_claude() {
 echo "${CLAUDE_CONFIG_DIR:-}" > "${MOCK_CLAUDE_LOG}"
 if [ -n "${MOCK_CLAUDE_ARGS_LOG:-}" ]; then
   printf '%s\n' "$@" > "${MOCK_CLAUDE_ARGS_LOG}"
+fi
+if [ -n "${MOCK_CLAUDE_ENV_LOG:-}" ]; then
+  {
+    printf 'ZAI_API_KEY=%s\n' "${ZAI_API_KEY:-}"
+    printf 'GLM_API_KEY=%s\n' "${GLM_API_KEY:-}"
+    printf 'DEEPSEEK_API_KEY=%s\n' "${DEEPSEEK_API_KEY:-}"
+    printf 'ANTHROPIC_API_KEY=%s\n' "${ANTHROPIC_API_KEY:-}"
+    printf 'ANTHROPIC_AUTH_TOKEN=%s\n' "${ANTHROPIC_AUTH_TOKEN:-}"
+    printf 'ANTHROPIC_BASE_URL=%s\n' "${ANTHROPIC_BASE_URL:-}"
+    printf 'ANTHROPIC_MODEL=%s\n' "${ANTHROPIC_MODEL:-}"
+    printf 'ANTHROPIC_DEFAULT_OPUS_MODEL=%s\n' "${ANTHROPIC_DEFAULT_OPUS_MODEL:-}"
+    printf 'ANTHROPIC_DEFAULT_SONNET_MODEL=%s\n' "${ANTHROPIC_DEFAULT_SONNET_MODEL:-}"
+    printf 'ANTHROPIC_DEFAULT_HAIKU_MODEL=%s\n' "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"
+    printf 'OPENROUTER_DEFAULT_MODEL=%s\n' "${OPENROUTER_DEFAULT_MODEL:-}"
+  } > "${MOCK_CLAUDE_ENV_LOG}"
 fi
 if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
 mkdir -p "${CLAUDE_CONFIG_DIR}"
@@ -953,6 +991,51 @@ test_exec_can_switch_provider_before_launch() {
     assert_contains "$command_output" "Provider: Z.AI (GLM)" || return 1
     assert_contains "$command_output" "Settings: $temp_home/.claude-switcher/instances/work/settings.json" || return 1
     assert_contains "$command_output" "CLAUDE_CONFIG_DIR: $temp_home/.claude-switcher/instances/work" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_exec_clears_stale_provider_env_before_launch() {
+    local temp_home
+    local temp_project_root
+    local env_log
+    temp_home=$(create_test_home)
+    temp_project_root=$(create_test_project "$temp_home")
+    create_mock_claude "$temp_home"
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+
+    CLAUDE_SWITCH_PROJECT_ROOT="$temp_project_root" \
+    MOCK_CLAUDE_LOG="$temp_home/mock-claude.log" \
+    MOCK_CLAUDE_ENV_LOG="$temp_home/mock-claude-env.log" \
+    PATH="$temp_home/bin:$PATH" \
+    HOME="$temp_home" \
+    ZAI_API_KEY="test-zai-key" \
+    GLM_API_KEY="legacy-glm-key" \
+    DEEPSEEK_API_KEY="stale-deepseek-key" \
+    ANTHROPIC_API_KEY="stale-anthropic-key" \
+    ANTHROPIC_AUTH_TOKEN="stale-auth-token" \
+    ANTHROPIC_BASE_URL="https://stale.example/api" \
+    ANTHROPIC_MODEL="stale-model" \
+    ANTHROPIC_DEFAULT_OPUS_MODEL="stale-opus" \
+    ANTHROPIC_DEFAULT_SONNET_MODEL="stale-sonnet" \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL="stale-haiku" \
+    OPENROUTER_DEFAULT_MODEL="stale/openrouter-model" \
+    bash "$PROJECT_DIR/bin/claude-switch" exec --yes zai -- > /dev/null || return 1
+    env_log=$(cat "$temp_home/mock-claude-env.log")
+
+    assert_matches "$env_log" '(^|[[:space:]])ZAI_API_KEY=($|[[:space:]])' "Launch should unset ZAI_API_KEY for the child process" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])GLM_API_KEY=($|[[:space:]])' "Launch should unset GLM_API_KEY for the child process" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])DEEPSEEK_API_KEY=($|[[:space:]])' "Launch should unset other provider keys for the child process" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])ANTHROPIC_API_KEY=($|[[:space:]])' "Launch should unset Anthropic API key overrides" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])ANTHROPIC_AUTH_TOKEN=($|[[:space:]])' "Launch should unset routing token overrides" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])ANTHROPIC_BASE_URL=($|[[:space:]])' "Launch should unset routing base URL overrides" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])ANTHROPIC_MODEL=($|[[:space:]])' "Launch should unset model overrides" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])ANTHROPIC_DEFAULT_OPUS_MODEL=($|[[:space:]])' "Launch should unset Opus override" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])ANTHROPIC_DEFAULT_SONNET_MODEL=($|[[:space:]])' "Launch should unset Sonnet override" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])ANTHROPIC_DEFAULT_HAIKU_MODEL=($|[[:space:]])' "Launch should unset Haiku override" || return 1
+    assert_matches "$env_log" '(^|[[:space:]])OPENROUTER_DEFAULT_MODEL=($|[[:space:]])' "Launch should unset OpenRouter model overrides" || return 1
 
     rm -rf "$temp_home"
 }

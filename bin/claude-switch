@@ -256,6 +256,39 @@ resolve_provider_auth_token() {
   return 1
 }
 
+list_provider_auth_envs() {
+  jq -sr '
+    ((.[0].providers // {}) + (.[1].providers // {}))
+    | [.[]?.auth_env[]?]
+    | unique[]
+  ' "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null
+}
+
+build_clean_launch_env_args() {
+  local var_name
+  local -a env_args=()
+
+  # Claude should read routing from the managed settings file, not from shell leftovers.
+  for var_name in \
+    ANTHROPIC_API_KEY \
+    ANTHROPIC_AUTH_TOKEN \
+    ANTHROPIC_BASE_URL \
+    ANTHROPIC_MODEL \
+    ANTHROPIC_DEFAULT_OPUS_MODEL \
+    ANTHROPIC_DEFAULT_SONNET_MODEL \
+    ANTHROPIC_DEFAULT_HAIKU_MODEL \
+    OPENROUTER_DEFAULT_MODEL; do
+    env_args+=("-u" "$var_name")
+  done
+
+  while IFS= read -r var_name; do
+    [ -z "$var_name" ] && continue
+    env_args+=("-u" "$var_name")
+  done < <(list_provider_auth_envs)
+
+  printf '%s\n' "${env_args[@]}"
+}
+
 get_provider_display_name() {
   local provider="$1"
   local display_name
@@ -1474,6 +1507,7 @@ launch_claude_for_account() {
   shift || true
   local claude_bin
   local runtime_root
+  local -a clean_env_args
 
   if ! claude_bin=$(get_claude_bin); then
     echo -e "${RED}❌ Claude Code CLI not found in PATH${NC}"
@@ -1482,11 +1516,19 @@ launch_claude_for_account() {
   fi
 
   runtime_root=$(get_runtime_root_for_account "$account_name")
+  while IFS= read -r line; do
+    clean_env_args+=("$line")
+  done < <(build_clean_launch_env_args)
 
   if [ "$(is_legacy_account "$account_name")" = "true" ]; then
-    CLAUDE_SWITCHER_ACCOUNT="$account_name" "$claude_bin" "$@"
+    env "${clean_env_args[@]}" \
+      CLAUDE_SWITCHER_ACCOUNT="$account_name" \
+      "$claude_bin" "$@"
   else
-    CLAUDE_CONFIG_DIR="$runtime_root" CLAUDE_SWITCHER_ACCOUNT="$account_name" "$claude_bin" "$@"
+    env "${clean_env_args[@]}" \
+      CLAUDE_CONFIG_DIR="$runtime_root" \
+      CLAUDE_SWITCHER_ACCOUNT="$account_name" \
+      "$claude_bin" "$@"
   fi
 }
 
@@ -2575,10 +2617,11 @@ clear_provider_connection() {
 
   if [ "$CURRENT_SCOPE" = "project" ]; then
     jq '.env.ANTHROPIC_AUTH_TOKEN = null |
-        .env.ANTHROPIC_BASE_URL = null' \
+        .env.ANTHROPIC_BASE_URL = null |
+        .env.ANTHROPIC_API_KEY = null' \
        "$SETTINGS" > "$tmp_settings"
   else
-    jq 'del(.env.ANTHROPIC_AUTH_TOKEN, .env.ANTHROPIC_BASE_URL)' \
+    jq 'del(.env.ANTHROPIC_AUTH_TOKEN, .env.ANTHROPIC_BASE_URL, .env.ANTHROPIC_API_KEY)' \
        "$SETTINGS" > "$tmp_settings"
   fi
 
@@ -2628,6 +2671,7 @@ apply_catalog_provider() {
   fi
 
   clear_all_models
+  clear_provider_connection
   tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
 
   case "$mapping_strategy" in
@@ -2721,6 +2765,7 @@ apply_config() {
     ollama)
       check_ollama || return 1
       clear_all_models
+      clear_provider_connection
       local opus_model=""
       local sonnet_model=""
       local haiku_model=""
@@ -2789,6 +2834,7 @@ apply_config() {
     lmstudio)
       check_lmstudio || return 1
       clear_all_models
+      clear_provider_connection
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq '.env.ANTHROPIC_AUTH_TOKEN = "lmstudio" |
