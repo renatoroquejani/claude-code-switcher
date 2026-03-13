@@ -1,8 +1,26 @@
 #!/bin/bash
 VERSION="2.2.0"
-SETTINGS="$HOME/.claude/settings.json"
-BACKUP_DIR="$HOME/.claude/backups"
 REPO_URL="https://github.com/renatoroquejani/claude-code-switcher"
+RAW_BASE_URL="${CLAUDE_SWITCHER_UPDATE_BASE_URL:-https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main}"
+LEGACY_CLAUDE_DIR="${CLAUDE_HOME:-${LEGACY_CLAUDE_DIR:-$HOME/.claude}}"
+SWITCHER_STATE_ROOT="${CLAUDE_SWITCHER_HOME:-${SWITCHER_STATE_ROOT:-$HOME/.claude-switcher}}"
+INSTANCES_DIR="${SWITCHER_INSTANCES_DIR:-$SWITCHER_STATE_ROOT/instances}"
+ACCOUNTS_FILE="${ACCOUNTS_FILE:-$SWITCHER_STATE_ROOT/accounts.json}"
+STATE_FILE="${STATE_FILE:-$SWITCHER_STATE_ROOT/state.json}"
+PROVIDERS_FILE="${CLAUDE_SWITCHER_PROVIDERS_FILE:-$SWITCHER_STATE_ROOT/providers.json}"
+CUSTOM_PROVIDERS_FILE="${CLAUDE_SWITCHER_CUSTOM_PROVIDERS_FILE:-$SWITCHER_STATE_ROOT/custom-providers.json}"
+PROFILES_FILE="${CLAUDE_SWITCHER_PROFILES_FILE:-$SWITCHER_STATE_ROOT/profiles.json}"
+SETTINGS=""
+BACKUP_DIR=""
+ACTIVE_ACCOUNT_DIR=""
+CURRENT_ACCOUNT=""
+AUTO_YES="false"
+GLOBAL_SETTINGS=""
+GLOBAL_BACKUP_DIR=""
+PROJECT_ROOT=""
+PROJECT_SETTINGS=""
+PROJECT_BACKUP_DIR=""
+CURRENT_SCOPE="global"
 
 # Colors
 GREEN=$'\033[0;32m'
@@ -13,8 +31,1535 @@ CYAN=$'\033[0;36m'
 BOLD=$'\033[1m'
 NC=$'\033[0m'
 
-mkdir -p "$BACKUP_DIR"
-chmod 700 "$BACKUP_DIR"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ACCOUNT STATE
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+write_json_file() {
+  local file="$1"
+  local content="$2"
+
+  mkdir -p "$(dirname "$file")"
+  printf '%s\n' "$content" > "$file"
+  chmod 600 "$file" 2>/dev/null || true
+}
+
+ensure_json_file() {
+  local file="$1"
+  local default_content="$2"
+
+  if [ ! -f "$file" ]; then
+    write_json_file "$file" "$default_content"
+  fi
+}
+
+get_bundled_providers_file() {
+  local bundled_file
+  bundled_file="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../config/providers.json"
+
+  if [ -f "$bundled_file" ]; then
+    printf '%s\n' "$bundled_file"
+    return 0
+  fi
+
+  return 1
+}
+
+write_default_provider_catalog() {
+  mkdir -p "$(dirname "$PROVIDERS_FILE")"
+  cat > "$PROVIDERS_FILE" << 'EOF'
+{
+  "version": 1,
+  "providers": {
+    "anthropic-api": {
+      "base_url": "https://api.anthropic.com",
+      "auth_env": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "claude-opus-4-6",
+        "sonnet": "claude-sonnet-4-5-20250929",
+        "haiku": "claude-haiku-4-20250920"
+      }
+    },
+    "zai": {
+      "base_url": "https://api.z.ai/api/anthropic",
+      "auth_env": [
+        "ZAI_API_KEY",
+        "GLM_API_KEY"
+      ],
+      "mapping_strategy": "provider-managed"
+    },
+    "deepseek": {
+      "base_url": "https://api.deepseek.com/anthropic",
+      "auth_env": [
+        "DEEPSEEK_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "deepseek-chat",
+        "sonnet": "deepseek-chat",
+        "haiku": "deepseek-chat"
+      }
+    },
+    "kimi": {
+      "base_url": "https://api.moonshot.ai/anthropic",
+      "auth_env": [
+        "KIMI_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "moonshot-v1-128k",
+        "sonnet": "moonshot-v1-32k",
+        "haiku": "moonshot-v1-8k"
+      }
+    },
+    "qwen": {
+      "base_url": "https://api.siliconflow.cn/v1/anthropic",
+      "auth_env": [
+        "SILICONFLOW_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "Qwen/Qwen2.5-Coder-32B-Instruct",
+        "sonnet": "Qwen/Qwen2.5-Coder-14B-Instruct",
+        "haiku": "Qwen/Qwen2.5-Coder-7B-Instruct"
+      }
+    },
+    "groq": {
+      "base_url": "https://api.groq.com/openai/v1",
+      "auth_env": [
+        "GROQ_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "llama-3.3-70b-versatile",
+        "sonnet": "llama-3.3-70b-versatile",
+        "haiku": "mixtral-8x7b-32768"
+      }
+    },
+    "together": {
+      "base_url": "https://api.together.xyz/v1",
+      "auth_env": [
+        "TOGETHER_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "sonnet": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "haiku": "mistralai/Mixtral-8x7B-Instruct-v0.1"
+      }
+    },
+    "openrouter": {
+      "base_url": "https://openrouter.ai/api",
+      "auth_env": [
+        "OPENROUTER_API_KEY"
+      ],
+      "mapping_strategy": "single-model",
+      "default_model": "anthropic/claude-opus-4.6"
+    }
+  }
+}
+EOF
+  chmod 600 "$PROVIDERS_FILE" 2>/dev/null || true
+}
+
+ensure_provider_catalog() {
+  if [ -f "$PROVIDERS_FILE" ] && jq empty "$PROVIDERS_FILE" > /dev/null 2>&1; then
+    return 0
+  fi
+
+  local bundled_file
+  if bundled_file=$(get_bundled_providers_file 2>/dev/null); then
+    mkdir -p "$(dirname "$PROVIDERS_FILE")"
+    cp "$bundled_file" "$PROVIDERS_FILE"
+    chmod 600 "$PROVIDERS_FILE" 2>/dev/null || true
+    return 0
+  fi
+
+  write_default_provider_catalog
+}
+
+ensure_custom_provider_catalog() {
+  ensure_json_file "$CUSTOM_PROVIDERS_FILE" '{"version":1,"providers":{}}'
+}
+
+ensure_profiles_file() {
+  ensure_json_file "$PROFILES_FILE" '{"profiles":{}}'
+}
+
+provider_exists_in_catalog() {
+  local provider="$1"
+  jq -e --arg provider "$provider" '.providers[$provider] != null' "$PROVIDERS_FILE" > /dev/null 2>&1
+}
+
+custom_provider_exists() {
+  local provider="$1"
+  jq -e --arg provider "$provider" '.providers[$provider] != null' "$CUSTOM_PROVIDERS_FILE" > /dev/null 2>&1
+}
+
+provider_exists() {
+  local provider="$1"
+
+  case "$provider" in
+    claude|ollama|lmstudio|z.ai|glm) return 0 ;;
+  esac
+
+  provider_exists_in_catalog "$provider" || custom_provider_exists "$provider"
+}
+
+get_provider_mapping_strategy() {
+  local provider="$1"
+  jq -sr --arg provider "$provider" \
+    '((.[0].providers // {}) + (.[1].providers // {}))[$provider].mapping_strategy // empty' \
+    "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null
+}
+
+get_provider_base_url() {
+  local provider="$1"
+  jq -sr --arg provider "$provider" \
+    '((.[0].providers // {}) + (.[1].providers // {}))[$provider].base_url // empty' \
+    "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null
+}
+
+get_provider_default_model() {
+  local provider="$1"
+  jq -sr --arg provider "$provider" \
+    '((.[0].providers // {}) + (.[1].providers // {}))[$provider].default_model // empty' \
+    "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null
+}
+
+get_provider_model_value() {
+  local provider="$1"
+  local tier="$2"
+  jq -sr --arg provider "$provider" --arg tier "$tier" \
+    '((.[0].providers // {}) + (.[1].providers // {}))[$provider].models[$tier] // empty' \
+    "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null
+}
+
+resolve_provider_auth_token() {
+  local provider="$1"
+  local env_name
+
+  while IFS= read -r env_name; do
+    [ -z "$env_name" ] && continue
+    local env_value="${!env_name:-}"
+    if [ -n "$env_value" ]; then
+      printf '%s\n' "$env_value"
+      return 0
+    fi
+  done < <(jq -sr --arg provider "$provider" \
+    '((.[0].providers // {}) + (.[1].providers // {}))[$provider].auth_env[]? // empty' \
+    "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)
+
+  return 1
+}
+
+get_provider_display_name() {
+  local provider="$1"
+  local display_name
+
+  display_name=$(jq -sr --arg provider "$provider" \
+    '((.[0].providers // {}) + (.[1].providers // {}))[$provider].display_name // empty' \
+    "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)
+  if [ -n "$display_name" ]; then
+    printf '%s\n' "$display_name"
+    return 0
+  fi
+
+  return 1
+}
+
+find_provider_by_base_url() {
+  local base_url="$1"
+  jq -sr --arg base_url "$base_url" \
+    '((.[0].providers // {}) + (.[1].providers // {}))
+     | to_entries[]
+     | select((.value.base_url // "") == $base_url)
+     | .key' \
+    "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null | head -n 1
+}
+
+validate_profile_name() {
+  local name="$1"
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}❌ Profile name is required${NC}"
+    return 1
+  fi
+
+  if [ ${#name} -gt 64 ]; then
+    echo -e "${RED}❌ Profile name too long (max 64 characters)${NC}"
+    return 1
+  fi
+
+  case "$name" in
+    *[!a-zA-Z0-9._-]*)
+      echo -e "${RED}❌ Invalid profile name: $name${NC}"
+      echo "Profile names can only contain: letters, numbers, dots, underscores, and hyphens"
+      return 1
+      ;;
+  esac
+
+  return 0
+}
+
+profile_exists() {
+  local profile_name="$1"
+  jq -e --arg name "$profile_name" '.profiles[$name] != null' "$PROFILES_FILE" > /dev/null 2>&1
+}
+
+validate_provider_name() {
+  local name="$1"
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}❌ Provider name is required${NC}"
+    return 1
+  fi
+
+  case "$name" in
+    claude|ollama|lmstudio|z.ai|glm)
+      echo -e "${RED}❌ Reserved provider name:${NC} $name"
+      return 1
+      ;;
+  esac
+
+  if [ ${#name} -gt 64 ]; then
+    echo -e "${RED}❌ Provider name too long (max 64 characters)${NC}"
+    return 1
+  fi
+
+  case "$name" in
+    *[!a-zA-Z0-9._-]*)
+      echo -e "${RED}❌ Invalid provider name: $name${NC}"
+      echo "Provider names can only contain: letters, numbers, dots, underscores, and hyphens"
+      return 1
+      ;;
+  esac
+
+  return 0
+}
+
+validate_auth_env_name() {
+  local env_name="$1"
+
+  if [[ ! "$env_name" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+    echo -e "${RED}❌ Invalid auth env name:${NC} $env_name"
+    echo "Use uppercase shell env vars like MY_PROVIDER_API_KEY"
+    return 1
+  fi
+
+  return 0
+}
+
+validate_account_name() {
+  local name="$1"
+
+  if [ -z "$name" ]; then
+    echo -e "${RED}❌ Account name is required${NC}"
+    return 1
+  fi
+
+  if [ ${#name} -gt 64 ]; then
+    echo -e "${RED}❌ Account name too long (max 64 characters)${NC}"
+    return 1
+  fi
+
+  case "$name" in
+    *[!a-zA-Z0-9._-]*)
+      echo -e "${RED}❌ Invalid account name: $name${NC}"
+      echo "Account names can only contain: letters, numbers, dots, underscores, and hyphens"
+      return 1
+      ;;
+  esac
+
+  return 0
+}
+
+account_exists() {
+  local account_name="$1"
+  jq -e --arg name "$account_name" '.accounts[$name] != null' "$ACCOUNTS_FILE" > /dev/null 2>&1
+}
+
+get_account_path() {
+  local account_name="$1"
+  jq -r --arg name "$account_name" '.accounts[$name].path // empty' "$ACCOUNTS_FILE" 2>/dev/null
+}
+
+is_legacy_account() {
+  local account_name="$1"
+  jq -r --arg name "$account_name" '.accounts[$name].legacy // false' "$ACCOUNTS_FILE" 2>/dev/null
+}
+
+count_accounts() {
+  jq -r '.accounts | length' "$ACCOUNTS_FILE" 2>/dev/null
+}
+
+set_active_account() {
+  local account_name="$1"
+  local tmp_file
+  tmp_file=$(mktemp "${STATE_FILE}.tmp.XXXXXX")
+
+  jq --arg name "$account_name" '.active_account = $name' "$STATE_FILE" > "$tmp_file"
+  mv "$tmp_file" "$STATE_FILE"
+  chmod 600 "$STATE_FILE" 2>/dev/null || true
+}
+
+register_account() {
+  local account_name="$1"
+  local account_path="$2"
+  local legacy="$3"
+  local tmp_file
+  tmp_file=$(mktemp "${ACCOUNTS_FILE}.tmp.XXXXXX")
+
+  jq \
+    --arg name "$account_name" \
+    --arg path "$account_path" \
+    --argjson legacy "$legacy" \
+    '.accounts[$name] = {
+      path: $path,
+      legacy: $legacy
+    }' \
+    "$ACCOUNTS_FILE" > "$tmp_file"
+
+  mv "$tmp_file" "$ACCOUNTS_FILE"
+  chmod 600 "$ACCOUNTS_FILE" 2>/dev/null || true
+}
+
+remove_account_record() {
+  local account_name="$1"
+  local tmp_file
+  tmp_file=$(mktemp "${ACCOUNTS_FILE}.tmp.XXXXXX")
+
+  jq --arg name "$account_name" 'del(.accounts[$name])' "$ACCOUNTS_FILE" > "$tmp_file"
+  mv "$tmp_file" "$ACCOUNTS_FILE"
+  chmod 600 "$ACCOUNTS_FILE" 2>/dev/null || true
+}
+
+update_account_record() {
+  local account_name="$1"
+  local account_path="$2"
+  local legacy="$3"
+  remove_account_record "$account_name"
+  register_account "$account_name" "$account_path" "$legacy"
+}
+
+get_first_other_account() {
+  local exclude_name="$1"
+  jq -r --arg exclude "$exclude_name" '.accounts | keys | map(select(. != $exclude)) | .[0] // empty' "$ACCOUNTS_FILE" 2>/dev/null
+}
+
+get_claude_bin() {
+  if [ -n "${CLAUDE_BIN:-}" ]; then
+    printf '%s\n' "$CLAUDE_BIN"
+    return 0
+  fi
+
+  if command -v claude > /dev/null 2>&1; then
+    command -v claude
+    return 0
+  fi
+
+  return 1
+}
+
+get_runtime_root_for_account() {
+  local account_name="$1"
+
+  if [ "$(is_legacy_account "$account_name")" = "true" ]; then
+    printf '%s\n' "$HOME"
+  else
+    get_account_path "$account_name"
+  fi
+}
+
+get_auth_file_for_account() {
+  local runtime_root
+  runtime_root=$(get_runtime_root_for_account "$1")
+  printf '%s\n' "$runtime_root/.claude.json"
+}
+
+get_credentials_file_for_account() {
+  local runtime_root
+  runtime_root=$(get_runtime_root_for_account "$1")
+  printf '%s\n' "$runtime_root/.credentials.json"
+}
+
+has_account_auth_state() {
+  local account_name="$1"
+  local auth_file
+  local credentials_file
+
+  auth_file=$(get_auth_file_for_account "$account_name")
+  credentials_file=$(get_credentials_file_for_account "$account_name")
+
+  if [ -f "$auth_file" ] && jq -e '.oauthAccount.emailAddress != null or .primaryApiKey != null' "$auth_file" > /dev/null 2>&1; then
+    return 0
+  fi
+
+  if [ -f "$credentials_file" ] && [ -s "$credentials_file" ]; then
+    return 0
+  fi
+
+  return 1
+}
+
+copy_path_if_exists() {
+  local source_path="$1"
+  local destination_path="$2"
+
+  if [ ! -e "$source_path" ]; then
+    return 0
+  fi
+
+  rm -rf "$destination_path"
+  cp -R "$source_path" "$destination_path"
+}
+
+copy_file_if_exists() {
+  local source_path="$1"
+  local destination_path="$2"
+
+  if [ ! -f "$source_path" ]; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$destination_path")"
+  cp "$source_path" "$destination_path"
+  chmod 600 "$destination_path" 2>/dev/null || true
+}
+
+ensure_settings_file() {
+  mkdir -p "$(dirname "$SETTINGS")" "$BACKUP_DIR"
+  chmod 700 "$(dirname "$SETTINGS")" "$BACKUP_DIR" 2>/dev/null || true
+
+  if [ ! -f "$SETTINGS" ]; then
+    cat > "$SETTINGS" << 'EOF'
+{
+  "env": {}
+}
+EOF
+  fi
+
+  chmod 600 "$SETTINGS" 2>/dev/null || true
+}
+
+get_project_root() {
+  if [ -n "${CLAUDE_SWITCH_PROJECT_ROOT:-}" ]; then
+    printf '%s\n' "$CLAUDE_SWITCH_PROJECT_ROOT"
+    return 0
+  fi
+
+  local git_root
+  git_root=$(git rev-parse --show-toplevel 2>/dev/null) || true
+  if [ -n "$git_root" ]; then
+    printf '%s\n' "$git_root"
+    return 0
+  fi
+
+  local dir="$PWD"
+  while [ "$dir" != "/" ] && [ "$dir" != "$HOME" ]; do
+    if [ -f "$dir/.claude/settings.local.json" ]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+    dir=$(dirname "$dir")
+  done
+
+  printf '%s\n' "$PWD"
+}
+
+refresh_project_paths() {
+  PROJECT_ROOT=$(get_project_root)
+  PROJECT_SETTINGS="$PROJECT_ROOT/.claude/settings.local.json"
+  PROJECT_BACKUP_DIR="$PROJECT_ROOT/.claude/backups"
+}
+
+project_override_exists() {
+  refresh_project_paths
+  [ -f "$PROJECT_SETTINGS" ]
+}
+
+get_settings_path_for_scope() {
+  local scope="$1"
+  refresh_project_paths
+
+  case "$scope" in
+    global) printf '%s\n' "$GLOBAL_SETTINGS" ;;
+    project) printf '%s\n' "$PROJECT_SETTINGS" ;;
+    effective)
+      if [ -f "$PROJECT_SETTINGS" ]; then
+        printf '%s\n' "$PROJECT_SETTINGS"
+      else
+        printf '%s\n' "$GLOBAL_SETTINGS"
+      fi
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+get_backup_dir_for_scope() {
+  local scope="$1"
+  refresh_project_paths
+
+  case "$scope" in
+    global) printf '%s\n' "$GLOBAL_BACKUP_DIR" ;;
+    project) printf '%s\n' "$PROJECT_BACKUP_DIR" ;;
+    effective)
+      if [ -f "$PROJECT_SETTINGS" ]; then
+        printf '%s\n' "$PROJECT_BACKUP_DIR"
+      else
+        printf '%s\n' "$GLOBAL_BACKUP_DIR"
+      fi
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+get_effective_scope() {
+  if project_override_exists; then
+    printf '%s\n' "project"
+  else
+    printf '%s\n' "global"
+  fi
+}
+
+use_scope_target() {
+  local scope="$1"
+  local target_settings
+  local target_backup_dir
+
+  target_settings=$(get_settings_path_for_scope "$scope") || return 1
+  target_backup_dir=$(get_backup_dir_for_scope "$scope") || return 1
+
+  CURRENT_SCOPE="$scope"
+  SETTINGS="$target_settings"
+  BACKUP_DIR="$target_backup_dir"
+}
+
+resolve_runtime_paths() {
+  local account_name="$1"
+  local account_path
+  account_path=$(get_account_path "$account_name")
+
+  if [ -z "$account_path" ]; then
+    echo -e "${RED}❌ Account not found:${NC} $account_name"
+    return 1
+  fi
+
+  CURRENT_ACCOUNT="$account_name"
+  ACTIVE_ACCOUNT_DIR="$account_path"
+  GLOBAL_SETTINGS="$ACTIVE_ACCOUNT_DIR/settings.json"
+  GLOBAL_BACKUP_DIR="$ACTIVE_ACCOUNT_DIR/backups"
+  refresh_project_paths
+  use_scope_target "global" || return 1
+  return 0
+}
+
+ensure_account_layout() {
+  local account_name="${1:-$CURRENT_ACCOUNT}"
+
+  resolve_runtime_paths "$account_name" || return 1
+  ensure_settings_file
+  return 0
+}
+
+ensure_switcher_state() {
+  mkdir -p "$SWITCHER_STATE_ROOT" "$INSTANCES_DIR"
+  chmod 700 "$SWITCHER_STATE_ROOT" "$INSTANCES_DIR" 2>/dev/null || true
+
+  ensure_json_file "$ACCOUNTS_FILE" '{"accounts":{}}'
+  ensure_json_file "$STATE_FILE" '{"active_account":"default"}'
+  ensure_provider_catalog
+  ensure_custom_provider_catalog
+  ensure_profiles_file
+
+  if ! account_exists "default"; then
+    mkdir -p "$LEGACY_CLAUDE_DIR"
+    chmod 700 "$LEGACY_CLAUDE_DIR" 2>/dev/null || true
+    register_account "default" "$LEGACY_CLAUDE_DIR" true
+  fi
+
+  CURRENT_ACCOUNT=$(jq -r '.active_account // "default"' "$STATE_FILE" 2>/dev/null)
+  if [ -z "$CURRENT_ACCOUNT" ] || ! account_exists "$CURRENT_ACCOUNT"; then
+    CURRENT_ACCOUNT="default"
+    set_active_account "$CURRENT_ACCOUNT"
+  fi
+
+  ensure_account_layout "$CURRENT_ACCOUNT"
+}
+
+show_account_list() {
+  local active_account
+  active_account=$(jq -r '.active_account // "default"' "$STATE_FILE" 2>/dev/null)
+
+  echo ""
+  echo -e "${BOLD}Accounts:${NC}"
+  echo ""
+
+  while IFS='|' read -r account_name account_path legacy; do
+    [ -z "$account_name" ] && continue
+
+    local marker=" "
+    local details="$account_path"
+
+    if [ "$account_name" = "$active_account" ]; then
+      marker="*"
+    fi
+
+    if [ "$legacy" = "true" ]; then
+      details="$details ${CYAN}(legacy)${NC}"
+    fi
+
+    echo -e "  ${GREEN}${marker}${NC} ${BOLD}${account_name}${NC} - $details"
+  done < <(jq -r '.accounts | to_entries[] | "\(.key)|\(.value.path)|\(.value.legacy // false)"' "$ACCOUNTS_FILE" 2>/dev/null)
+
+  echo ""
+  echo "Legend: * active account"
+  echo ""
+}
+
+show_current_account() {
+  echo ""
+  echo -e "${BOLD}Active Account:${NC}"
+  echo "  Name: $CURRENT_ACCOUNT"
+  echo "  Path: $ACTIVE_ACCOUNT_DIR"
+  if [ "$(is_legacy_account "$CURRENT_ACCOUNT")" = "true" ]; then
+    echo "  Mode: legacy"
+  else
+    echo "  Mode: isolated"
+  fi
+  echo ""
+}
+
+create_account() {
+  local account_name="$1"
+  local account_path
+
+  validate_account_name "$account_name" || return 1
+
+  if account_exists "$account_name"; then
+    echo -e "${RED}❌ Account already exists:${NC} $account_name"
+    return 1
+  fi
+
+  account_path="$INSTANCES_DIR/$account_name"
+  mkdir -p "$account_path/backups"
+  chmod 700 "$account_path" "$account_path/backups" 2>/dev/null || true
+
+  cat > "$account_path/settings.json" << 'EOF'
+{
+  "env": {}
+}
+EOF
+  chmod 600 "$account_path/settings.json" 2>/dev/null || true
+
+  register_account "$account_name" "$account_path" false
+  echo -e "${GREEN}✓${NC} Account created: ${BOLD}$account_name${NC}"
+  echo "Path: $account_path"
+}
+
+use_account() {
+  local account_name="$1"
+
+  if ! account_exists "$account_name"; then
+    echo -e "${RED}❌ Account not found:${NC} $account_name"
+    return 1
+  fi
+
+  set_active_account "$account_name"
+  ensure_account_layout "$account_name" || return 1
+  echo -e "${GREEN}✓${NC} Active account: ${BOLD}$account_name${NC}"
+}
+
+rename_account() {
+  local old_name="$1"
+  local new_name="$2"
+  local old_path
+  local old_legacy
+
+  validate_account_name "$new_name" || return 1
+
+  if ! account_exists "$old_name"; then
+    echo -e "${RED}❌ Account not found:${NC} $old_name"
+    return 1
+  fi
+
+  if account_exists "$new_name"; then
+    echo -e "${RED}❌ Account already exists:${NC} $new_name"
+    return 1
+  fi
+
+  old_legacy=$(is_legacy_account "$old_name")
+  if [ "$old_legacy" = "true" ]; then
+    echo -e "${RED}❌ Legacy account cannot be renamed:${NC} $old_name"
+    return 1
+  fi
+
+  old_path=$(get_account_path "$old_name")
+  mv "$old_path" "$INSTANCES_DIR/$new_name"
+  remove_account_record "$old_name"
+  register_account "$new_name" "$INSTANCES_DIR/$new_name" false
+
+  if [ "$(jq -r '.active_account // "default"' "$STATE_FILE" 2>/dev/null)" = "$old_name" ]; then
+    set_active_account "$new_name"
+    ensure_account_layout "$new_name" || return 1
+  fi
+
+  echo -e "${GREEN}✓${NC} Account renamed: ${BOLD}$old_name${NC} → ${BOLD}$new_name${NC}"
+}
+
+delete_account() {
+  local account_name="$1"
+  local account_path
+  local legacy
+  local replacement_account=""
+
+  if ! account_exists "$account_name"; then
+    echo -e "${RED}❌ Account not found:${NC} $account_name"
+    return 1
+  fi
+
+  if [ "$(count_accounts)" -le 1 ]; then
+    echo -e "${RED}❌ Cannot delete the last remaining account${NC}"
+    return 1
+  fi
+
+  legacy=$(is_legacy_account "$account_name")
+  if [ "$legacy" = "true" ]; then
+    echo -e "${RED}❌ Legacy account cannot be deleted:${NC} $account_name"
+    return 1
+  fi
+
+  account_path=$(get_account_path "$account_name")
+  replacement_account=$(get_first_other_account "$account_name")
+  rm -rf "$account_path"
+  remove_account_record "$account_name"
+
+  if [ "$(jq -r '.active_account // "default"' "$STATE_FILE" 2>/dev/null)" = "$account_name" ]; then
+    set_active_account "$replacement_account"
+    ensure_account_layout "$replacement_account" || return 1
+  fi
+
+  echo -e "${GREEN}✓${NC} Account deleted: ${BOLD}$account_name${NC}"
+}
+
+login_account() {
+  local account_name="$1"
+  local claude_bin
+  local account_path
+
+  if [ -z "$account_name" ]; then
+    echo -e "${RED}❌ Account name is required${NC}"
+    return 1
+  fi
+
+  if ! account_exists "$account_name"; then
+    echo -e "${RED}❌ Account not found:${NC} $account_name"
+    return 1
+  fi
+
+  if [ "$(is_legacy_account "$account_name")" = "true" ]; then
+    echo -e "${RED}❌ Login flow is only supported for isolated accounts${NC}"
+    echo "Use: claude-switch account create <name>"
+    return 1
+  fi
+
+  if ! claude_bin=$(get_claude_bin); then
+    echo -e "${RED}❌ Claude Code CLI not found in PATH${NC}"
+    echo "Install it first: npm install -g @anthropic-ai/claude-code"
+    return 1
+  fi
+
+  account_path=$(get_account_path "$account_name")
+  mkdir -p "$account_path"
+
+  echo ""
+  echo -e "${BOLD}Account Login:${NC} ${GREEN}$account_name${NC}"
+  echo "Runtime root: $account_path"
+  echo "Launching Claude with CLAUDE_CONFIG_DIR..."
+  echo ""
+
+  CLAUDE_CONFIG_DIR="$account_path" "$claude_bin"
+}
+
+test_account_auth() {
+  local account_name="${1:-$CURRENT_ACCOUNT}"
+  local auth_file
+  local credentials_file
+
+  if ! account_exists "$account_name"; then
+    echo -e "${RED}❌ Account not found:${NC} $account_name"
+    return 1
+  fi
+
+  auth_file=$(get_auth_file_for_account "$account_name")
+  credentials_file=$(get_credentials_file_for_account "$account_name")
+
+  echo ""
+  echo -e "${BOLD}Account Check:${NC} ${GREEN}$account_name${NC}"
+  echo "Auth file: $auth_file"
+  echo "Credentials file: $credentials_file"
+
+  if has_account_auth_state "$account_name"; then
+    if [ -f "$auth_file" ] && jq -e '.oauthAccount.emailAddress != null' "$auth_file" > /dev/null 2>&1; then
+      local email
+      email=$(jq -r '.oauthAccount.emailAddress' "$auth_file" 2>/dev/null)
+      echo -e "${GREEN}✓${NC} Claude account detected: $email"
+    elif [ -f "$auth_file" ] && jq -e '.primaryApiKey != null' "$auth_file" > /dev/null 2>&1; then
+      echo -e "${GREEN}✓${NC} Claude API key state detected"
+    else
+      echo -e "${GREEN}✓${NC} Claude credential state detected"
+    fi
+    echo ""
+    return 0
+  fi
+
+  echo -e "${RED}❌ No Claude authentication state detected for this account${NC}"
+  if [ "$(is_legacy_account "$account_name")" = "true" ]; then
+    echo "Login with your normal Claude CLI first."
+  else
+    echo "Run: claude-switch account login $account_name"
+  fi
+  echo ""
+  return 1
+}
+
+import_current_account() {
+  local account_name="$1"
+  local account_path
+
+  if [ -z "$account_name" ]; then
+    echo -e "${RED}❌ Account name is required${NC}"
+    return 1
+  fi
+
+  validate_account_name "$account_name" || return 1
+
+  if account_exists "$account_name"; then
+    echo -e "${RED}❌ Account already exists:${NC} $account_name"
+    return 1
+  fi
+
+  create_account "$account_name" > /dev/null || return 1
+  account_path=$(get_account_path "$account_name")
+
+  copy_file_if_exists "$HOME/.claude.json" "$account_path/.claude.json"
+  copy_file_if_exists "$HOME/.credentials.json" "$account_path/.credentials.json"
+  copy_file_if_exists "$LEGACY_CLAUDE_DIR/settings.json" "$account_path/settings.json"
+  copy_file_if_exists "$LEGACY_CLAUDE_DIR/policy-limits.json" "$account_path/policy-limits.json"
+  copy_path_if_exists "$LEGACY_CLAUDE_DIR/backups" "$account_path/backups"
+  copy_path_if_exists "$LEGACY_CLAUDE_DIR/cache" "$account_path/cache"
+  copy_path_if_exists "$LEGACY_CLAUDE_DIR/plugins" "$account_path/plugins"
+
+  chmod 700 "$account_path" 2>/dev/null || true
+  [ -d "$account_path/backups" ] && chmod 700 "$account_path/backups" 2>/dev/null || true
+  [ -f "$account_path/settings.json" ] && chmod 600 "$account_path/settings.json" 2>/dev/null || true
+  [ -f "$account_path/.claude.json" ] && chmod 600 "$account_path/.claude.json" 2>/dev/null || true
+  [ -f "$account_path/.credentials.json" ] && chmod 600 "$account_path/.credentials.json" 2>/dev/null || true
+
+  echo -e "${GREEN}✓${NC} Imported current Claude state into: ${BOLD}$account_name${NC}"
+  echo "Path: $account_path"
+  echo "Next step: claude-switch account use $account_name"
+}
+
+handle_account_command() {
+  local action="$1"
+  shift || true
+
+  case "$action" in
+    list|ls|"") show_account_list ;;
+    current) show_current_account ;;
+    create) create_account "$1" ;;
+    use) use_account "$1" ;;
+    rename) rename_account "$1" "$2" ;;
+    delete|remove|rm) delete_account "$1" ;;
+    login) login_account "$1" ;;
+    test) test_account_auth "$1" ;;
+    import-current) import_current_account "$1" ;;
+    *)
+      echo -e "${RED}❌ Unknown account command:${NC} $action"
+      echo "Usage: claude-switch account [list|current|create|use|rename|delete|login|test|import-current]"
+      return 1
+      ;;
+  esac
+}
+
+get_effective_provider_spec() {
+  local effective_scope
+  local effective_settings
+  local provider
+  local mapping_strategy
+  local model=""
+
+  effective_scope=$(get_effective_scope)
+  effective_settings=$(get_settings_path_for_scope "$effective_scope")
+  provider=$(get_current_config_from_file "$effective_settings")
+
+  if [ "$provider" = "unknown" ]; then
+    return 1
+  fi
+
+  case "$provider" in
+    openrouter|ollama)
+      model=$(jq -r '.env.ANTHROPIC_MODEL // .env.ANTHROPIC_DEFAULT_HAIKU_MODEL // .env.ANTHROPIC_DEFAULT_OPUS_MODEL // empty' "$effective_settings" 2>/dev/null)
+      ;;
+    claude|lmstudio|anthropic-api|zai|deepseek|kimi|qwen|groq|together)
+      model=""
+      ;;
+    *)
+      mapping_strategy=$(get_provider_mapping_strategy "$provider")
+      if [ "$mapping_strategy" = "single-model" ]; then
+        model=$(jq -r '.env.ANTHROPIC_MODEL // .env.ANTHROPIC_DEFAULT_OPUS_MODEL // empty' "$effective_settings" 2>/dev/null)
+      fi
+      ;;
+  esac
+
+  if [ -n "$model" ] && [ "$model" != "null" ]; then
+    printf '%s:%s\n' "$provider" "$model"
+  else
+    printf '%s\n' "$provider"
+  fi
+}
+
+save_profile() {
+  local profile_name="$1"
+  local expected_provider_spec="${2:-}"
+  local auto_yes="${3:-$AUTO_YES}"
+  local effective_scope
+  local provider_spec
+  local project_root=""
+  local tmp_file
+
+  validate_profile_name "$profile_name" || return 1
+
+  effective_scope=$(get_effective_scope)
+  if ! provider_spec=$(get_effective_provider_spec); then
+    echo -e "${RED}❌ Cannot save a profile for an unknown provider${NC}"
+    return 1
+  fi
+
+  if [ -n "$expected_provider_spec" ] && [ "$expected_provider_spec" != "$provider_spec" ]; then
+    echo -e "${RED}❌ Current provider does not match the expected profile provider${NC}"
+    echo "Expected: $expected_provider_spec"
+    echo "Current:  $provider_spec"
+    echo "Run: claude-switch status"
+    return 1
+  fi
+
+  if [ "$effective_scope" = "project" ]; then
+    project_root="$PROJECT_ROOT"
+  fi
+
+  echo ""
+  echo -e "${BOLD}Saving Profile:${NC}"
+  echo "  Name: $profile_name"
+  echo "  Account: $CURRENT_ACCOUNT"
+  echo "  Scope: $effective_scope"
+  echo "  Provider: $provider_spec"
+  if [ -n "$project_root" ]; then
+    echo "  Project Root: $project_root"
+  fi
+
+  if profile_exists "$profile_name"; then
+    echo "  Existing: yes"
+    if [ "$auto_yes" = "true" ]; then
+      echo "  Confirmation: auto-approved via --yes"
+    else
+      read -p "Overwrite existing profile? [y/N] " -n 1 -r
+      echo
+      if [[ ! $REPLY =~ ^[SsYy]$ ]]; then
+        echo "Operation cancelled"
+        return 1
+      fi
+    fi
+  else
+    echo "  Existing: no"
+  fi
+
+  tmp_file=$(mktemp "${PROFILES_FILE}.tmp.XXXXXX")
+  jq \
+    --arg name "$profile_name" \
+    --arg account "$CURRENT_ACCOUNT" \
+    --arg scope "$effective_scope" \
+    --arg provider_spec "$provider_spec" \
+    --arg project_root "$project_root" \
+    '.profiles[$name] = {
+      account: $account,
+      scope: $scope,
+      provider_spec: $provider_spec,
+      project_root: $project_root
+    }' \
+    "$PROFILES_FILE" > "$tmp_file"
+  mv "$tmp_file" "$PROFILES_FILE"
+  chmod 600 "$PROFILES_FILE" 2>/dev/null || true
+
+  echo -e "${GREEN}✓${NC} Profile saved: ${BOLD}$profile_name${NC}"
+  echo "Account: $CURRENT_ACCOUNT"
+  echo "Scope: $effective_scope"
+  echo "Provider: $provider_spec"
+  if [ -n "$project_root" ]; then
+    echo "Project Root: $project_root"
+  fi
+}
+
+show_profile_list() {
+  echo ""
+  echo -e "${BOLD}Profiles:${NC}"
+  echo ""
+
+  if [ "$(jq -r '.profiles | length' "$PROFILES_FILE" 2>/dev/null)" = "0" ]; then
+    echo "  No saved profiles"
+    echo ""
+    return 0
+  fi
+
+  while IFS='|' read -r profile_name account scope provider_spec project_root; do
+    [ -z "$profile_name" ] && continue
+    echo -e "  ${GREEN}${profile_name}${NC} - account=${account} scope=${scope} provider=${provider_spec}"
+    if [ -n "$project_root" ]; then
+      echo "    project=$project_root"
+    fi
+  done < <(jq -r '.profiles | to_entries[] | "\(.key)|\(.value.account)|\(.value.scope)|\(.value.provider_spec)|\(.value.project_root // "")"' "$PROFILES_FILE" 2>/dev/null)
+
+  echo ""
+}
+
+delete_profile() {
+  local profile_name="$1"
+  local tmp_file
+
+  if ! profile_exists "$profile_name"; then
+    echo -e "${RED}❌ Profile not found:${NC} $profile_name"
+    return 1
+  fi
+
+  tmp_file=$(mktemp "${PROFILES_FILE}.tmp.XXXXXX")
+  jq --arg name "$profile_name" 'del(.profiles[$name])' "$PROFILES_FILE" > "$tmp_file"
+  mv "$tmp_file" "$PROFILES_FILE"
+  chmod 600 "$PROFILES_FILE" 2>/dev/null || true
+
+  echo -e "${GREEN}✓${NC} Profile deleted: ${BOLD}$profile_name${NC}"
+}
+
+use_profile() {
+  local profile_name="$1"
+  local account_name
+  local scope
+  local provider_spec
+  local project_root
+  local previous_project_root="${CLAUDE_SWITCH_PROJECT_ROOT:-}"
+
+  if ! profile_exists "$profile_name"; then
+    echo -e "${RED}❌ Profile not found:${NC} $profile_name"
+    return 1
+  fi
+
+  account_name=$(jq -r --arg name "$profile_name" '.profiles[$name].account // empty' "$PROFILES_FILE" 2>/dev/null)
+  scope=$(jq -r --arg name "$profile_name" '.profiles[$name].scope // "global"' "$PROFILES_FILE" 2>/dev/null)
+  provider_spec=$(jq -r --arg name "$profile_name" '.profiles[$name].provider_spec // empty' "$PROFILES_FILE" 2>/dev/null)
+  project_root=$(jq -r --arg name "$profile_name" '.profiles[$name].project_root // empty' "$PROFILES_FILE" 2>/dev/null)
+
+  if ! account_exists "$account_name"; then
+    echo -e "${RED}❌ Profile account is missing:${NC} $account_name"
+    echo "Use: claude-switch account create $account_name"
+    return 1
+  fi
+
+  use_account "$account_name" > /dev/null || return 1
+
+  if [ "$scope" = "project" ]; then
+    if [ -z "$project_root" ]; then
+      echo -e "${RED}❌ Profile is project-scoped but has no saved project root${NC}"
+      return 1
+    fi
+    export CLAUDE_SWITCH_PROJECT_ROOT="$project_root"
+    refresh_project_paths
+    use_scope_target "project" || return 1
+  else
+    use_scope_target "global" || return 1
+  fi
+
+  run_switch_flow "$provider_spec" true "true" || {
+    if [ -n "$previous_project_root" ]; then
+      export CLAUDE_SWITCH_PROJECT_ROOT="$previous_project_root"
+    else
+      unset CLAUDE_SWITCH_PROJECT_ROOT
+    fi
+    refresh_project_paths
+    return 1
+  }
+
+  if [ -n "$previous_project_root" ]; then
+    export CLAUDE_SWITCH_PROJECT_ROOT="$previous_project_root"
+  else
+    unset CLAUDE_SWITCH_PROJECT_ROOT
+  fi
+  refresh_project_paths
+  resolve_runtime_paths "$CURRENT_ACCOUNT" > /dev/null 2>&1 || true
+
+  echo -e "${GREEN}✓${NC} Profile applied: ${BOLD}$profile_name${NC}"
+}
+
+handle_profile_command() {
+  local action="$1"
+  shift || true
+  local auto_yes="$AUTO_YES"
+  local expected_provider_spec=""
+
+  if [ "$action" = "save" ]; then
+    local profile_name="${1:-}"
+    shift || true
+
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -y|--yes)
+          auto_yes="true"
+          shift
+          ;;
+        --provider)
+          expected_provider_spec="$2"
+          shift 2
+          ;;
+        *)
+          echo -e "${RED}❌ Unknown profile save option:${NC} $1"
+          echo "Usage: claude-switch profile save <name> [--provider <provider[:model]>] [--yes]"
+          return 1
+          ;;
+      esac
+    done
+
+    save_profile "$profile_name" "$expected_provider_spec" "$auto_yes"
+    return $?
+  fi
+
+  case "$action" in
+    list|ls|"") show_profile_list ;;
+    use) use_profile "$1" ;;
+    delete|remove|rm) delete_profile "$1" ;;
+    *)
+      echo -e "${RED}❌ Unknown profile command:${NC} $action"
+      echo "Usage: claude-switch profile [list|save|use|delete]"
+      return 1
+      ;;
+  esac
+}
+
+show_custom_provider_list() {
+  echo ""
+  echo -e "${BOLD}Custom Providers:${NC}"
+  echo ""
+
+  if [ "$(jq -r '.providers | length' "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)" = "0" ]; then
+    echo "  No custom providers configured"
+    echo ""
+    return 0
+  fi
+
+  while IFS='|' read -r provider_name display_name mapping_strategy base_url auth_env; do
+    [ -z "$provider_name" ] && continue
+    [ -z "$display_name" ] && display_name="$provider_name"
+    echo -e "  ${GREEN}${provider_name}${NC} - ${display_name}"
+    echo "    base_url=$base_url mapping=$mapping_strategy auth_env=$auth_env"
+  done < <(jq -r '.providers | to_entries[] | "\(.key)|\(.value.display_name // "")|\(.value.mapping_strategy // "unknown")|\(.value.base_url // "")|\((.value.auth_env // []) | join(","))"' "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)
+
+  echo ""
+}
+
+add_custom_provider() {
+  local provider_name="$1"
+  shift || true
+  local base_url=""
+  local auth_env_csv=""
+  local mapping_strategy=""
+  local display_name=""
+  local default_model=""
+  local opus_model=""
+  local sonnet_model=""
+  local haiku_model=""
+  local tmp_file
+
+  validate_provider_name "$provider_name" || return 1
+
+  if provider_exists "$provider_name"; then
+    echo -e "${RED}❌ Provider already exists:${NC} $provider_name"
+    return 1
+  fi
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --base-url) base_url="$2"; shift 2 ;;
+      --auth-env) auth_env_csv="$2"; shift 2 ;;
+      --mapping) mapping_strategy="$2"; shift 2 ;;
+      --display-name) display_name="$2"; shift 2 ;;
+      --model) default_model="$2"; shift 2 ;;
+      --opus) opus_model="$2"; shift 2 ;;
+      --sonnet) sonnet_model="$2"; shift 2 ;;
+      --haiku) haiku_model="$2"; shift 2 ;;
+      *)
+        echo -e "${RED}❌ Unknown provider add option:${NC} $1"
+        return 1
+        ;;
+    esac
+  done
+
+  if [ -z "$base_url" ] || [ -z "$auth_env_csv" ] || [ -z "$mapping_strategy" ]; then
+    echo -e "${RED}❌ Missing required provider arguments${NC}"
+    echo "Usage: claude-switch provider add <name> --base-url <url> --auth-env <ENV[,ENV2]> --mapping <provider-managed|fixed|single-model> [--display-name <name>] [--model <model>] [--opus <model> --sonnet <model> --haiku <model>]"
+    return 1
+  fi
+
+  case "$mapping_strategy" in
+    provider-managed) ;;
+    fixed)
+      [ -n "$opus_model" ] && validate_model_name "$opus_model" || { echo -e "${RED}❌ --opus is required for fixed providers${NC}"; return 1; }
+      [ -n "$sonnet_model" ] && validate_model_name "$sonnet_model" || { echo -e "${RED}❌ --sonnet is required for fixed providers${NC}"; return 1; }
+      [ -n "$haiku_model" ] && validate_model_name "$haiku_model" || { echo -e "${RED}❌ --haiku is required for fixed providers${NC}"; return 1; }
+      ;;
+    single-model)
+      [ -n "$default_model" ] && validate_model_name "$default_model" || { echo -e "${RED}❌ --model is required for single-model providers${NC}"; return 1; }
+      ;;
+    *)
+      echo -e "${RED}❌ Invalid mapping strategy:${NC} $mapping_strategy"
+      return 1
+      ;;
+  esac
+
+  IFS=',' read -r -a auth_env_list <<< "$auth_env_csv"
+  if [ "${#auth_env_list[@]}" -eq 0 ]; then
+    echo -e "${RED}❌ At least one auth env is required${NC}"
+    return 1
+  fi
+
+  local auth_env_json="[]"
+  local env_name
+  for env_name in "${auth_env_list[@]}"; do
+    validate_auth_env_name "$env_name" || return 1
+    auth_env_json=$(jq -cn --argjson existing "$auth_env_json" --arg value "$env_name" '$existing + [$value]')
+  done
+
+  tmp_file=$(mktemp "${CUSTOM_PROVIDERS_FILE}.tmp.XXXXXX")
+  jq \
+    --arg name "$provider_name" \
+    --arg base_url "$base_url" \
+    --arg mapping_strategy "$mapping_strategy" \
+    --arg display_name "$display_name" \
+    --arg default_model "$default_model" \
+    --arg opus "$opus_model" \
+    --arg sonnet "$sonnet_model" \
+    --arg haiku "$haiku_model" \
+    --argjson auth_env "$auth_env_json" \
+    '.providers[$name] = {
+      base_url: $base_url,
+      auth_env: $auth_env,
+      mapping_strategy: $mapping_strategy
+    }
+    | if $display_name != "" then .providers[$name].display_name = $display_name else . end
+    | if $mapping_strategy == "single-model" then .providers[$name].default_model = $default_model else . end
+    | if $mapping_strategy == "fixed" then .providers[$name].models = {
+        opus: $opus,
+        sonnet: $sonnet,
+        haiku: $haiku
+      } else . end' \
+    "$CUSTOM_PROVIDERS_FILE" > "$tmp_file"
+  mv "$tmp_file" "$CUSTOM_PROVIDERS_FILE"
+  chmod 600 "$CUSTOM_PROVIDERS_FILE" 2>/dev/null || true
+
+  echo -e "${GREEN}✓${NC} Custom provider added: ${BOLD}$provider_name${NC}"
+  echo "Base URL: $base_url"
+  echo "Mapping: $mapping_strategy"
+}
+
+delete_custom_provider() {
+  local provider_name="$1"
+  local tmp_file
+
+  if ! custom_provider_exists "$provider_name"; then
+    echo -e "${RED}❌ Custom provider not found:${NC} $provider_name"
+    return 1
+  fi
+
+  tmp_file=$(mktemp "${CUSTOM_PROVIDERS_FILE}.tmp.XXXXXX")
+  jq --arg name "$provider_name" 'del(.providers[$name])' "$CUSTOM_PROVIDERS_FILE" > "$tmp_file"
+  mv "$tmp_file" "$CUSTOM_PROVIDERS_FILE"
+  chmod 600 "$CUSTOM_PROVIDERS_FILE" 2>/dev/null || true
+
+  echo -e "${GREEN}✓${NC} Custom provider deleted: ${BOLD}$provider_name${NC}"
+}
+
+handle_provider_command() {
+  local action="$1"
+  shift || true
+
+  case "$action" in
+    list|ls|"") show_custom_provider_list ;;
+    add) add_custom_provider "$@" ;;
+    delete|remove|rm) delete_custom_provider "$1" ;;
+    *)
+      echo -e "${RED}❌ Unknown provider command:${NC} $action"
+      echo "Usage: claude-switch provider [list|add|delete]"
+      return 1
+      ;;
+  esac
+}
+
+handle_scoped_switch_command() {
+  local scope="$1"
+  shift || true
+  local auto_yes="$AUTO_YES"
+  local provider_spec=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -y|--yes)
+        auto_yes="true"
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      *)
+        if [ -z "$provider_spec" ]; then
+          provider_spec="$1"
+          shift
+        else
+          break
+        fi
+        ;;
+    esac
+  done
+
+  if [ -z "$provider_spec" ]; then
+    echo -e "${RED}❌ Provider is required${NC}"
+    echo "Usage: claude-switch $scope [--yes] <provider>"
+    return 1
+  fi
+
+  use_scope_target "$scope" || return 1
+  run_switch_flow "$provider_spec" true "$auto_yes"
+}
+
+reset_project_scope() {
+  local backup_path
+
+  refresh_project_paths
+
+  if [ ! -f "$PROJECT_SETTINGS" ]; then
+    echo -e "${YELLOW}No project override found${NC}"
+    echo "Path: $PROJECT_SETTINGS"
+    return 0
+  fi
+
+  mkdir -p "$PROJECT_BACKUP_DIR"
+  chmod 700 "$PROJECT_BACKUP_DIR" 2>/dev/null || true
+
+  backup_path="$PROJECT_BACKUP_DIR/settings.local.json.backup-$(date +%Y%m%d-%H%M%S)"
+  cp "$PROJECT_SETTINGS" "$backup_path"
+  chmod 600 "$backup_path" 2>/dev/null || true
+  rm -f "$PROJECT_SETTINGS"
+
+  echo -e "${GREEN}✓${NC} Removed project override"
+  echo "Settings: $PROJECT_SETTINGS"
+  echo "Backup: $backup_path"
+}
+
+launch_claude_for_account() {
+  local account_name="${1:-$CURRENT_ACCOUNT}"
+  shift || true
+  local claude_bin
+  local runtime_root
+
+  if ! claude_bin=$(get_claude_bin); then
+    echo -e "${RED}❌ Claude Code CLI not found in PATH${NC}"
+    echo "Install it first: npm install -g @anthropic-ai/claude-code"
+    return 1
+  fi
+
+  runtime_root=$(get_runtime_root_for_account "$account_name")
+
+  if [ "$(is_legacy_account "$account_name")" = "true" ]; then
+    CLAUDE_SWITCHER_ACCOUNT="$account_name" "$claude_bin" "$@"
+  else
+    CLAUDE_CONFIG_DIR="$runtime_root" CLAUDE_SWITCHER_ACCOUNT="$account_name" "$claude_bin" "$@"
+  fi
+}
+
+show_launch_hint() {
+  echo ""
+  if [ "$(is_legacy_account "$CURRENT_ACCOUNT")" = "true" ]; then
+    echo -e "${GREEN}✓${NC} Start with: ${BOLD}claude${NC}"
+  else
+    echo -e "${GREEN}✓${NC} Start with: ${BOLD}claude-switch exec --${NC}"
+  fi
+}
+
+show_applied_model_mapping() {
+  local provider="$1"
+  local mapping_strategy
+
+  echo ""
+  echo -e "${BOLD}Model Mapping:${NC}"
+
+  mapping_strategy=$(get_provider_mapping_strategy "$provider")
+
+  case "$provider:$mapping_strategy" in
+    zai:provider-managed|*:provider-managed)
+      echo -e "  Opus   → ${GREEN}<provider-managed>${NC}"
+      echo -e "  Sonnet → ${GREEN}<provider-managed>${NC}"
+      echo -e "  Haiku  → ${GREEN}<provider-managed>${NC}"
+      if [ "$provider" = "zai" ]; then
+        echo -e "  ${CYAN}Z.AI handles tier-to-model mapping internally${NC}"
+      else
+        echo -e "  ${CYAN}This provider handles tier-to-model mapping internally${NC}"
+      fi
+      ;;
+    *)
+      echo -e "  Opus   → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_OPUS_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
+      echo -e "  Sonnet → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_SONNET_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
+      echo -e "  Haiku  → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_HAIKU_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
+      ;;
+  esac
+}
+
+show_launch_summary() {
+  local summary_scope
+  local summary_settings
+  local current_provider
+  local base_url
+
+  summary_scope=$(get_effective_scope)
+  summary_settings=$(get_settings_path_for_scope "$summary_scope")
+  current_provider=$(get_current_config_from_file "$summary_settings")
+  base_url=$(jq -r '.env.ANTHROPIC_BASE_URL // empty' "$summary_settings" 2>/dev/null)
+
+  echo ""
+  echo -e "${BOLD}Launch Summary:${NC}"
+  echo "  Account: $CURRENT_ACCOUNT"
+  if [ "$(is_legacy_account "$CURRENT_ACCOUNT")" = "true" ]; then
+    echo "  Mode: legacy"
+  else
+    echo "  Mode: isolated"
+  fi
+  echo "  Scope: $summary_scope"
+  echo "  Provider: $(get_friendly_name "$current_provider")"
+  echo "  Settings: $summary_settings"
+  if [ -n "$base_url" ]; then
+    echo "  Base URL: $base_url"
+  fi
+  if [ "$summary_scope" = "project" ]; then
+    echo "  Project Root: $PROJECT_ROOT"
+  fi
+  if [ "$(is_legacy_account "$CURRENT_ACCOUNT")" != "true" ]; then
+    echo "  CLAUDE_CONFIG_DIR: $ACTIVE_ACCOUNT_DIR"
+  fi
+  echo ""
+}
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # MODEL MAPPING
@@ -25,35 +1570,37 @@ get_anthropic_oauth_models() {
 }
 
 get_anthropic_api_models() {
-  echo "opus:claude-opus-4-6 sonnet:claude-sonnet-4-5-20250929 haiku:claude-haiku-4-20250920"
+  echo "opus:$(get_provider_model_value "anthropic-api" "opus") sonnet:$(get_provider_model_value "anthropic-api" "sonnet") haiku:$(get_provider_model_value "anthropic-api" "haiku")"
 }
 
 get_zai_models() {
-  echo "opus:glm-4.7 sonnet:glm-4.7 haiku:glm-4.5-flash"
+  local strategy
+  strategy=$(get_provider_mapping_strategy "zai")
+  echo "opus:$strategy sonnet:$strategy haiku:$strategy"
 }
 
 get_deepseek_models() {
-  echo "opus:deepseek-chat sonnet:deepseek-chat haiku:deepseek-chat"
+  echo "opus:$(get_provider_model_value "deepseek" "opus") sonnet:$(get_provider_model_value "deepseek" "sonnet") haiku:$(get_provider_model_value "deepseek" "haiku")"
 }
 
 get_kimi_models() {
-  echo "opus:moonshot-v1-128k sonnet:moonshot-v1-32k haiku:moonshot-v1-8k"
+  echo "opus:$(get_provider_model_value "kimi" "opus") sonnet:$(get_provider_model_value "kimi" "sonnet") haiku:$(get_provider_model_value "kimi" "haiku")"
 }
 
 get_qwen_models() {
-  echo "opus:Qwen/Qwen2.5-Coder-32B-Instruct sonnet:Qwen/Qwen2.5-Coder-14B-Instruct haiku:Qwen/Qwen2.5-Coder-7B-Instruct"
+  echo "opus:$(get_provider_model_value "qwen" "opus") sonnet:$(get_provider_model_value "qwen" "sonnet") haiku:$(get_provider_model_value "qwen" "haiku")"
 }
 
 get_groq_models() {
-  echo "opus:llama-3.3-70b-versatile sonnet:llama-3.3-70b-versatile haiku:mixtral-8x7b-32768"
+  echo "opus:$(get_provider_model_value "groq" "opus") sonnet:$(get_provider_model_value "groq" "sonnet") haiku:$(get_provider_model_value "groq" "haiku")"
 }
 
 get_together_models() {
-  echo "opus:meta-llama/Llama-3.3-70B-Instruct-Turbo sonnet:meta-llama/Llama-3.3-70B-Instruct-Turbo haiku:mistralai/Mixtral-8x7B-Instruct-v0.1"
+  echo "opus:$(get_provider_model_value "together" "opus") sonnet:$(get_provider_model_value "together" "sonnet") haiku:$(get_provider_model_value "together" "haiku")"
 }
 
 get_openrouter_models() {
-  local model="${OPENROUTER_DEFAULT_MODEL:-anthropic/claude-opus-4.6}"
+  local model="${OPENROUTER_DEFAULT_MODEL:-$(get_provider_default_model "openrouter")}"
   echo "opus:$model sonnet:$model haiku:$model"
 }
 
@@ -77,6 +1624,25 @@ get_ollama_models() {
 
 get_lmstudio_models() {
   echo "opus: sonnet: haiku:"
+}
+
+download_remote_file() {
+  local url="$1"
+  local dest="$2"
+
+  if [[ "$url" == file://* ]]; then
+    cp "${url#file://}" "$dest"
+    return 0
+  fi
+
+  if command -v curl > /dev/null 2>&1; then
+    curl -fsSL "$url" -o "$dest"
+  elif command -v wget > /dev/null 2>&1; then
+    wget -q "$url" -O "$dest"
+  else
+    echo -e "${RED}❌ Neither curl nor wget is available${NC}"
+    return 1
+  fi
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -115,8 +1681,8 @@ do_update() {
 
   echo -e "${CYAN}Downloading latest version...${NC}"
 
-  local download_url="$REPO_URL/raw/main/bin/claude-switch"
-  if ! curl -fsSL "$download_url" -o "$temp_dir/claude-switch"; then
+  local download_url="$RAW_BASE_URL/bin/claude-switch"
+  if ! download_remote_file "$download_url" "$temp_dir/claude-switch"; then
     echo -e "${RED}❌ Failed to download update${NC}"
     rm -rf "$temp_dir"
     return 1
@@ -135,8 +1701,58 @@ do_update() {
 
   echo -e "${GREEN}✓${NC} Updated successfully!"
   echo ""
+  echo "Run ${GREEN}claude-switch update-config${NC} to refresh provider presets if needed."
+  echo ""
   echo "New version:"
   bash "$script_path" --version 2>/dev/null || echo "v$(grep '^VERSION=' "$script_path" | cut -d'"' -f2)"
+}
+
+do_update_config() {
+  local temp_dir
+  local temp_file
+  local download_url
+  local bundled_file
+  local using_local_fallback="false"
+
+  temp_dir=$(mktemp -d)
+  temp_file="$temp_dir/providers.json"
+  download_url="${CLAUDE_SWITCHER_CONFIG_URL:-$RAW_BASE_URL/config/providers.json}"
+
+  echo -e "${CYAN}Downloading latest provider config...${NC}"
+
+  if ! download_remote_file "$download_url" "$temp_file"; then
+    if [ -z "${CLAUDE_SWITCHER_CONFIG_URL:-}" ] && bundled_file=$(get_bundled_providers_file 2>/dev/null); then
+      cp "$bundled_file" "$temp_file"
+      using_local_fallback="true"
+      echo -e "${YELLOW}⚠️  Remote provider config unavailable, using local checkout copy${NC}"
+    else
+      echo -e "${RED}❌ Failed to download provider config${NC}"
+      rm -rf "$temp_dir"
+      return 1
+    fi
+  fi
+
+  if ! jq empty "$temp_file" > /dev/null 2>&1; then
+    echo -e "${RED}❌ Downloaded provider config is invalid JSON${NC}"
+    rm -rf "$temp_dir"
+    return 1
+  fi
+
+  mkdir -p "$(dirname "$PROVIDERS_FILE")"
+  if [ -f "$PROVIDERS_FILE" ]; then
+    cp "$PROVIDERS_FILE" "${PROVIDERS_FILE}.backup"
+    chmod 600 "${PROVIDERS_FILE}.backup" 2>/dev/null || true
+    echo -e "${GREEN}✓${NC} Backup created: ${PROVIDERS_FILE}.backup"
+  fi
+
+  mv "$temp_file" "$PROVIDERS_FILE"
+  chmod 600 "$PROVIDERS_FILE" 2>/dev/null || true
+  rm -rf "$temp_dir"
+
+  echo -e "${GREEN}✓${NC} Provider config updated: $PROVIDERS_FILE"
+  if [ "$using_local_fallback" = "true" ]; then
+    echo "Source: $bundled_file"
+  fi
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -165,11 +1781,14 @@ show_help() {
   echo ""
   echo -e "${YELLOW}USAGE:${NC}"
   echo "  claude-switch <provider>[:model]"
+  echo "  claude-switch account <command>"
+  echo "  claude-switch profile <command>"
+  echo "  claude-switch provider <command>"
   echo ""
   echo -e "${YELLOW}CLOUD PROVIDERS:${NC}"
   echo "  ${GREEN}claude${NC}            Anthropic Claude (OAuth - no API key)"
   echo "  ${GREEN}anthropic-api${NC}     Anthropic Claude API (requires key)"
-  echo "  ${GREEN}zai / z.ai${NC}        Z.AI GLM models (4.7, 4.6, 4.5-Flash)"
+  echo "  ${GREEN}zai / z.ai${NC}        Z.AI GLM (provider-managed tier mapping)"
   echo "  ${GREEN}deepseek${NC}          DeepSeek Chat/Coder"
   echo "  ${GREEN}kimi${NC}              Kimi (Moonshot AI)"
   echo "  ${GREEN}qwen${NC}              Qwen Coder (7B, 14B, 32B)"
@@ -190,20 +1809,49 @@ show_help() {
   echo -e "${YELLOW}EXAMPLES:${NC}"
   echo "  claude-switch claude           # Use Anthropic Claude (OAuth)"
   echo "  claude-switch anthropic-api    # Use Anthropic Claude API (requires key)"
-  echo "  claude-switch zai              # Use Z.AI GLM-4.7"
+  echo "  claude-switch zai              # Use Z.AI GLM"
   echo "  claude-switch groq             # Use Groq (fast inference)"
   echo "  claude-switch together         # Use Together AI"
   echo "  claude-switch openrouter:qwen/qwen-2.5-coder-32b"
   echo "  claude-switch ollama           # Use local Ollama (qwen3-coder:7b default)"
   echo "  claude-switch ollama:qwen3-coder:14b  # Use specific model"
+  echo "  claude-switch --yes zai        # Switch without confirmation"
+  echo "  claude-switch project zai      # Apply a project-local override"
+  echo "  claude-switch global claude    # Update the active account global settings"
+  echo "  claude-switch doctor           # Run environment diagnostics"
+  echo "  claude-switch doctor --json    # Machine-readable diagnostics"
+  echo "  claude-switch update-config    # Refresh provider presets"
+  echo "  claude-switch exec --yes zai -- -p \"hello\""
+  echo "  claude-switch profile save work-zai --provider zai --yes"
+  echo "  claude-switch provider add acme --base-url https://acme.example/api/anthropic --auth-env ACME_API_KEY --mapping fixed --opus acme-opus --sonnet acme-sonnet --haiku acme-haiku"
   echo ""
   echo -e "${YELLOW}SPECIAL COMMANDS:${NC}"
   echo "  ${GREEN}wizard${NC}            Interactive configuration wizard"
   echo "  ${GREEN}keys${NC}              Show where to get API keys"
   echo "  ${GREEN}list${NC}              List available providers"
   echo "  ${GREEN}status${NC}            Show current configuration"
+  echo "  ${GREEN}account list${NC}      List configured accounts"
+  echo "  ${GREEN}account use <name>${NC} Switch active account"
+  echo "  ${GREEN}account current${NC}  Show active account"
+  echo "  ${GREEN}account login <name>${NC} Authenticate an isolated account"
+  echo "  ${GREEN}account test <name>${NC}  Check if an account has Claude auth state"
+  echo "  ${GREEN}account import-current <name>${NC} Import current Claude state into a new isolated account"
+  echo "  ${GREEN}profile list${NC}      List saved profiles"
+  echo "  ${GREEN}profile save <name>${NC} Save the current account/provider/scope as a profile"
+  echo "  ${GREEN}  └─ options:${NC} --provider <provider[:model]> --yes"
+  echo "  ${GREEN}profile use <name>${NC} Reapply a saved profile"
+  echo "  ${GREEN}provider list${NC}     List custom providers"
+  echo "  ${GREEN}provider add ...${NC}  Register a custom provider"
+  echo "  ${GREEN}provider delete <name>${NC} Remove a custom provider"
+  echo "  ${GREEN}global <provider>${NC} Update the active account global settings"
+  echo "  ${GREEN}project <provider>${NC} Apply a project-local override"
+  echo "  ${GREEN}reset project${NC}     Remove the current project override"
+  echo "  ${GREEN}where${NC}             Show effective settings resolution"
+  echo "  ${GREEN}doctor [--json]${NC}   Run environment diagnostics"
+  echo "  ${GREEN}exec [provider] -- [args]${NC} Launch Claude for the active account"
   echo "  ${GREEN}models <provider>${NC} Show model mapping for provider"
   echo "  ${GREEN}update${NC}            Update to latest version from GitHub"
+  echo "  ${GREEN}update-config${NC}     Update provider presets from GitHub"
   echo "  ${GREEN}help${NC}              Show this help"
   echo ""
 }
@@ -221,7 +1869,7 @@ show_key_docs() {
   echo ""
   echo "  ${GREEN}Z.AI:${NC} https://z.ai/manage-apikey/apikey-list"
   echo "    → Plans: \$3/month or \$15/month (annual ~\$180/year)"
-  echo "    → Models: GLM-4.7, GLM-4.6, GLM-4.5-Flash"
+  echo "    → Models: provider-managed by Z.AI"
   echo ""
   echo "  ${GREEN}DeepSeek:${NC} https://platform.deepseek.com/api_keys"
   echo "    → \$0.14/1M input, \$0.28/1M output"
@@ -265,7 +1913,7 @@ list_providers() {
   echo -e "${YELLOW}CLOUD (paid):${NC}"
   echo "  claude        - Anthropic Claude OAuth (Opus/Sonnet/Haiku)"
   echo "  anthropic-api - Anthropic Claude API (requires key)"
-  echo "  zai           - Z.AI GLM (4.7/4.6/4.5-Flash)"
+  echo "  zai           - Z.AI GLM (provider-managed)"
   echo "  deepseek      - DeepSeek Chat/Coder"
   echo "  kimi          - Kimi (Moonshot AI)"
   echo "  qwen          - Qwen Coder (32B/14B/7B)"
@@ -277,6 +1925,17 @@ list_providers() {
   echo "  ollama        - Ollama (local GGUF models)"
   echo "  lmstudio      - LM Studio (GUI)"
   echo ""
+
+  if [ "$(jq -r '.providers | length' "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)" != "0" ]; then
+    echo -e "${YELLOW}CUSTOM:${NC}"
+    while IFS='|' read -r provider_name display_name mapping_strategy; do
+      [ -z "$provider_name" ] && continue
+      [ -z "$display_name" ] && display_name="$provider_name"
+      echo "  $provider_name - $display_name ($mapping_strategy)"
+    done < <(jq -r '.providers | to_entries[] | "\(.key)|\(.value.display_name // "")|\(.value.mapping_strategy // "unknown")"' "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)
+    echo ""
+  fi
+
   echo -e "${YELLOW}Installed Ollama Models:${NC}"
   if command -v ollama &> /dev/null; then
     ollama list 2>/dev/null || echo "  No models installed"
@@ -288,6 +1947,8 @@ list_providers() {
 
 show_model_mapping() {
   local provider="$1"
+  local mapping_strategy
+  local model
 
   if [ -z "$provider" ]; then
     echo -e "${RED}Usage: claude-switch models <provider>${NC}"
@@ -303,48 +1964,10 @@ show_model_mapping() {
   echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
   case "$provider" in
-    claude|anthropic-api)
+    claude)
       echo -e "  Opus    →  claude-opus-4-6"
       echo -e "  Sonnet  →  claude-sonnet-4-5-20250929"
       echo -e "  Haiku   →  claude-haiku-4-20250920"
-      ;;
-    zai|z.ai|glm)
-      echo -e "  Opus    →  glm-4.7"
-      echo -e "  Sonnet  →  glm-4.7"
-      echo -e "  Haiku   →  glm-4.5-flash"
-      ;;
-    deepseek)
-      echo -e "  Opus    →  deepseek-chat"
-      echo -e "  Sonnet  →  deepseek-chat"
-      echo -e "  Haiku   →  deepseek-chat"
-      ;;
-    kimi)
-      echo -e "  Opus    →  moonshot-v1-128k"
-      echo -e "  Sonnet  →  moonshot-v1-32k"
-      echo -e "  Haiku   →  moonshot-v1-8k"
-      ;;
-    qwen)
-      echo -e "  Opus    →  Qwen/Qwen2.5-Coder-32B-Instruct"
-      echo -e "  Sonnet  →  Qwen/Qwen2.5-Coder-14B-Instruct"
-      echo -e "  Haiku   →  Qwen/Qwen2.5-Coder-7B-Instruct"
-      ;;
-    groq)
-      echo -e "  Opus    →  llama-3.3-70b-versatile"
-      echo -e "  Sonnet  →  llama-3.3-70b-versatile"
-      echo -e "  Haiku   →  mixtral-8x7b-32768"
-      ;;
-    together)
-      echo -e "  Opus    →  meta-llama/Llama-3.3-70B-Instruct-Turbo"
-      echo -e "  Sonnet  →  mistralai/Mixtral-8x7B-Instruct-v0.1"
-      echo -e "  Haiku   →  mistralai/Mistral-7B-Instruct-v0.2"
-      ;;
-    openrouter)
-      local model="${OPENROUTER_DEFAULT_MODEL:-anthropic/claude-opus-4.6}"
-      echo -e "  Opus    →  $model"
-      echo -e "  Sonnet  →  $model"
-      echo -e "  Haiku   →  $model"
-      echo ""
-      echo -e "${CYAN}(All tiers use the same OpenRouter model)${NC}"
       ;;
     ollama)
       local installed=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
@@ -370,9 +1993,47 @@ show_model_mapping() {
       echo -e "${CYAN}(Uses whatever model is loaded in LM Studio)${NC}"
       ;;
     *)
-      echo -e "${RED}Unknown provider: $provider${NC}"
-      echo "Run: claude-switch list"
-      return 1
+      case "$provider" in
+        z.ai|glm) provider="zai" ;;
+      esac
+
+      if provider_exists "$provider"; then
+        mapping_strategy=$(get_provider_mapping_strategy "$provider")
+        case "$mapping_strategy" in
+          provider-managed)
+            echo -e "  Opus    →  <provider-managed>"
+            echo -e "  Sonnet  →  <provider-managed>"
+            echo -e "  Haiku   →  <provider-managed>"
+            echo ""
+            echo -e "${CYAN}(Tier mapping is handled by $(get_friendly_name "$provider"))${NC}"
+            ;;
+          fixed)
+            echo -e "  Opus    →  $(get_provider_model_value "$provider" "opus")"
+            echo -e "  Sonnet  →  $(get_provider_model_value "$provider" "sonnet")"
+            echo -e "  Haiku   →  $(get_provider_model_value "$provider" "haiku")"
+            ;;
+          single-model)
+            if [ "$provider" = "openrouter" ]; then
+              model="${OPENROUTER_DEFAULT_MODEL:-$(get_provider_default_model "$provider")}"
+            else
+              model="$(get_provider_default_model "$provider")"
+            fi
+            echo -e "  Opus    →  $model"
+            echo -e "  Sonnet  →  $model"
+            echo -e "  Haiku   →  $model"
+            echo ""
+            echo -e "${CYAN}(All tiers use the same provider model)${NC}"
+            ;;
+          *)
+            echo -e "${RED}Unknown provider mapping strategy:${NC} $mapping_strategy"
+            return 1
+            ;;
+        esac
+      else
+        echo -e "${RED}Unknown provider: $provider${NC}"
+        echo "Run: claude-switch list"
+        return 1
+      fi
       ;;
   esac
   echo ""
@@ -382,11 +2043,26 @@ show_model_mapping() {
 # CURRENT CONFIG DETECTION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-get_current_config() {
-  local base_url=$(jq -r '.env.ANTHROPIC_BASE_URL // "oauth"' "$SETTINGS" 2>/dev/null)
+get_current_config_from_file() {
+  local settings_file="$1"
+  local base_url="oauth"
+  local matched_provider=""
+
+  [ -f "$settings_file" ] && base_url=$(jq -r '.env.ANTHROPIC_BASE_URL // "oauth"' "$settings_file" 2>/dev/null)
 
   case "$base_url" in
-    "oauth"|"null") echo "claude" ;;
+    "oauth"|"null") echo "claude"; return 0 ;;
+    *"localhost:11434"*|*"127.0.0.1:11434"*) echo "ollama"; return 0 ;;
+    *"localhost:1234"*|*"127.0.0.1:1234"*) echo "lmstudio"; return 0 ;;
+  esac
+
+  matched_provider=$(find_provider_by_base_url "$base_url")
+  if [ -n "$matched_provider" ]; then
+    echo "$matched_provider"
+    return 0
+  fi
+
+  case "$base_url" in
     *"api.anthropic.com"*) echo "anthropic-api" ;;
     *"z.ai"*) echo "zai" ;;
     *"deepseek"*) echo "deepseek" ;;
@@ -395,13 +2071,35 @@ get_current_config() {
     *"groq"*) echo "groq" ;;
     *"together"*) echo "together" ;;
     *"openrouter"*) echo "openrouter" ;;
-    *"localhost:11434"*|*"127.0.0.1:11434"*) echo "ollama" ;;
-    *"localhost:1234"*|*"127.0.0.1:1234"*) echo "lmstudio" ;;
     *) echo "unknown" ;;
   esac
 }
 
+get_current_config() {
+  get_current_config_from_file "$SETTINGS"
+}
+
+get_current_config_for_scope() {
+  case "$CURRENT_SCOPE" in
+    project)
+      get_current_config_from_file "$(get_settings_path_for_scope "effective")"
+      ;;
+    *)
+      get_current_config
+      ;;
+  esac
+}
+
 get_friendly_name() {
+  local custom_name=""
+
+  if custom_name=$(get_provider_display_name "$1" 2>/dev/null); then
+    if [ -n "$custom_name" ]; then
+      printf '%s\n' "$custom_name"
+      return 0
+    fi
+  fi
+
   case "$1" in
     claude) echo "Claude (Anthropic OAuth)" ;;
     anthropic-api) echo "Claude (Anthropic API)" ;;
@@ -419,33 +2117,353 @@ get_friendly_name() {
 }
 
 show_status() {
-  local current=$(get_current_config)
-  local current_name=$(get_friendly_name "$current")
+  local effective_scope
+  local effective_settings
+  local current
+  local current_name
+  local base_url
+  local opus_model
+  local sonnet_model
+  local haiku_model
+
+  effective_scope=$(get_effective_scope)
+  effective_settings=$(get_settings_path_for_scope "$effective_scope")
+  current=$(get_current_config_from_file "$effective_settings")
+  current_name=$(get_friendly_name "$current")
 
   echo ""
   echo -e "${BOLD}Current Status:${NC}"
+  echo -e "  Account: ${GREEN}$CURRENT_ACCOUNT${NC}"
+  echo "  Scope: $effective_scope"
+  echo "  Settings: $effective_settings"
   echo -e "  Provider: ${GREEN}$current_name${NC}"
+  if [ "$effective_scope" = "project" ]; then
+    echo "  Project Root: $PROJECT_ROOT"
+  fi
 
-  local base_url=$(jq -r '.env.ANTHROPIC_BASE_URL // "oauth"' "$SETTINGS" 2>/dev/null)
+  base_url=$(jq -r '.env.ANTHROPIC_BASE_URL // "oauth"' "$effective_settings" 2>/dev/null)
   if [ "$base_url" != "oauth" ] && [ "$base_url" != "null" ]; then
     echo "  Base URL: $base_url"
   fi
 
-  local opus_model=$(jq -r '.env.ANTHROPIC_DEFAULT_OPUS_MODEL // "default"' "$SETTINGS" 2>/dev/null)
+  opus_model=$(jq -r '.env.ANTHROPIC_DEFAULT_OPUS_MODEL // "default"' "$effective_settings" 2>/dev/null)
   if [ "$opus_model" != "default" ] && [ "$opus_model" != "null" ]; then
     echo "  Opus: $opus_model"
   fi
 
-  local sonnet_model=$(jq -r '.env.ANTHROPIC_DEFAULT_SONNET_MODEL // "default"' "$SETTINGS" 2>/dev/null)
+  sonnet_model=$(jq -r '.env.ANTHROPIC_DEFAULT_SONNET_MODEL // "default"' "$effective_settings" 2>/dev/null)
   if [ "$sonnet_model" != "default" ] && [ "$sonnet_model" != "null" ]; then
     echo "  Sonnet: $sonnet_model"
   fi
 
-  local haiku_model=$(jq -r '.env.ANTHROPIC_DEFAULT_HAIKU_MODEL // "default"' "$SETTINGS" 2>/dev/null)
+  haiku_model=$(jq -r '.env.ANTHROPIC_DEFAULT_HAIKU_MODEL // "default"' "$effective_settings" 2>/dev/null)
   if [ "$haiku_model" != "default" ] && [ "$haiku_model" != "null" ]; then
     echo "  Haiku: $haiku_model"
   fi
   echo ""
+}
+
+show_where() {
+  local effective_scope
+  local effective_settings
+
+  effective_scope=$(get_effective_scope)
+  effective_settings=$(get_settings_path_for_scope "$effective_scope")
+
+  echo ""
+  echo -e "${BOLD}Resolution:${NC}"
+  echo "  Account: $CURRENT_ACCOUNT"
+  if [ "$(is_legacy_account "$CURRENT_ACCOUNT")" = "true" ]; then
+    echo "  Mode: legacy"
+  else
+    echo "  Mode: isolated"
+  fi
+  echo "  Project Root: $PROJECT_ROOT"
+  echo "  Global Settings: $GLOBAL_SETTINGS"
+  echo "  Project Settings: $PROJECT_SETTINGS"
+  if [ -f "$PROJECT_SETTINGS" ]; then
+    echo "  Project Override: yes"
+  else
+    echo "  Project Override: no"
+  fi
+  echo "  Effective Scope: $effective_scope"
+  echo "  Effective Settings: $effective_settings"
+  echo ""
+}
+
+doctor_init_report() {
+  DOCTOR_REPORT_FILE=$(mktemp)
+  printf '[]\n' > "$DOCTOR_REPORT_FILE"
+  DOCTOR_HAS_FAILURES="false"
+  DOCTOR_HAS_WARNINGS="false"
+}
+
+doctor_cleanup_report() {
+  [ -n "${DOCTOR_REPORT_FILE:-}" ] && rm -f "$DOCTOR_REPORT_FILE"
+  DOCTOR_REPORT_FILE=""
+}
+
+doctor_add_check() {
+  local check_id="$1"
+  local status="$2"
+  local summary="$3"
+  local details="${4:-}"
+  local remedy="${5:-}"
+  local icon="✓"
+  local color="$GREEN"
+  local ok="true"
+
+  case "$status" in
+    pass)
+      ;;
+    warn)
+      icon="!"
+      color="$YELLOW"
+      ok="false"
+      DOCTOR_HAS_WARNINGS="true"
+      ;;
+    fail)
+      icon="✗"
+      color="$RED"
+      ok="false"
+      DOCTOR_HAS_FAILURES="true"
+      ;;
+    *)
+      status="warn"
+      icon="!"
+      color="$YELLOW"
+      ok="false"
+      DOCTOR_HAS_WARNINGS="true"
+      ;;
+  esac
+
+  if [ "${DOCTOR_JSON_MODE:-false}" != "true" ]; then
+    echo -e "  ${color}${icon}${NC} ${BOLD}${check_id}${NC} - $summary"
+    [ -n "$details" ] && echo "    $details"
+    [ -n "$remedy" ] && echo "    Fix: $remedy"
+  fi
+
+  local tmp_file
+  tmp_file=$(mktemp "${DOCTOR_REPORT_FILE}.tmp.XXXXXX")
+  jq \
+    --arg id "$check_id" \
+    --arg status "$status" \
+    --arg summary "$summary" \
+    --arg details "$details" \
+    --arg remedy "$remedy" \
+    --argjson ok "$ok" \
+    '. += [{
+      id: $id,
+      status: $status,
+      ok: $ok,
+      summary: $summary,
+      details: $details,
+      remedy: $remedy
+    }]' \
+    "$DOCTOR_REPORT_FILE" > "$tmp_file"
+  mv "$tmp_file" "$DOCTOR_REPORT_FILE"
+}
+
+doctor_check_json_file() {
+  local check_id="$1"
+  local file_path="$2"
+  local description="$3"
+  local missing_status="${4:-fail}"
+
+  if [ ! -f "$file_path" ]; then
+    doctor_add_check "$check_id" "$missing_status" "$description not found" "Path: $file_path"
+    return 1
+  fi
+
+  if jq empty "$file_path" > /dev/null 2>&1; then
+    doctor_add_check "$check_id" "pass" "$description is valid JSON" "Path: $file_path"
+    return 0
+  fi
+
+  doctor_add_check "$check_id" "fail" "$description is invalid JSON" "Path: $file_path" "Repair or recreate the JSON file"
+  return 1
+}
+
+doctor_check_local_provider() {
+  local provider="$1"
+
+  case "$provider" in
+    ollama)
+      if ! command -v ollama > /dev/null 2>&1; then
+        doctor_add_check "local_provider" "fail" "Ollama is configured but not installed" "" "Install Ollama and start the local server"
+        return
+      fi
+      if pgrep -x ollama > /dev/null 2>&1; then
+        doctor_add_check "local_provider" "pass" "Ollama is installed and running"
+      else
+        doctor_add_check "local_provider" "fail" "Ollama is configured but not running" "" "Run: ollama serve"
+      fi
+      ;;
+    lmstudio)
+      if curl -s http://localhost:1234/v1/models > /dev/null 2>&1; then
+        doctor_add_check "local_provider" "pass" "LM Studio local server is reachable"
+      else
+        doctor_add_check "local_provider" "fail" "LM Studio is configured but the local server is unreachable" "" "Open LM Studio, load a model, and start the local server"
+      fi
+      ;;
+    *)
+      doctor_add_check "local_provider" "pass" "Current provider does not require a local runtime" "Provider: $(get_friendly_name "$provider")"
+      ;;
+  esac
+}
+
+doctor_emit_json() {
+  local overall_status="healthy"
+  local ok="true"
+
+  if [ "$DOCTOR_HAS_FAILURES" = "true" ]; then
+    overall_status="broken"
+    ok="false"
+  elif [ "$DOCTOR_HAS_WARNINGS" = "true" ]; then
+    overall_status="degraded"
+    ok="false"
+  fi
+
+  jq -n \
+    --arg status "$overall_status" \
+    --arg account "$CURRENT_ACCOUNT" \
+    --arg scope "$(get_effective_scope)" \
+    --arg provider "$(get_current_config_from_file "$(get_settings_path_for_scope "$(get_effective_scope)")")" \
+    --arg provider_name "$(get_friendly_name "$(get_current_config_from_file "$(get_settings_path_for_scope "$(get_effective_scope)")")")" \
+    --arg settings "$(get_settings_path_for_scope "$(get_effective_scope)")" \
+    --arg project_root "$PROJECT_ROOT" \
+    --arg global_settings "$GLOBAL_SETTINGS" \
+    --arg project_settings "$PROJECT_SETTINGS" \
+    --argjson ok "$ok" \
+    --slurpfile checks "$DOCTOR_REPORT_FILE" \
+    '{
+      ok: $ok,
+      status: $status,
+      account: $account,
+      scope: $scope,
+      provider: {
+        id: $provider,
+        name: $provider_name
+      },
+      settings: {
+        effective: $settings,
+        global: $global_settings,
+        project: $project_settings
+      },
+      project_root: $project_root,
+      checks: $checks[0]
+    }'
+}
+
+run_doctor_missing_jq() {
+  local json_mode="false"
+  [ "${1:-}" = "--json" ] && json_mode="true"
+
+  if [ "$json_mode" = "true" ]; then
+    cat << 'EOF'
+{"ok":false,"status":"broken","checks":[{"id":"jq","status":"fail","ok":false,"summary":"jq is not installed","details":"","remedy":"Install jq and re-run claude-switch doctor"}]}
+EOF
+  else
+    echo ""
+    echo -e "${BOLD}Doctor:${NC}"
+    echo "  ${RED}✗${NC} jq - jq is not installed"
+    echo "    Fix: Install jq and re-run claude-switch doctor"
+    echo ""
+  fi
+  return 1
+}
+
+run_doctor() {
+  local effective_scope
+  local effective_settings
+  local provider
+  local claude_bin=""
+
+  DOCTOR_JSON_MODE="false"
+  if [ "${1:-}" = "--json" ]; then
+    DOCTOR_JSON_MODE="true"
+    shift
+  fi
+
+  doctor_init_report
+  trap doctor_cleanup_report RETURN
+
+  effective_scope=$(get_effective_scope)
+  effective_settings=$(get_settings_path_for_scope "$effective_scope")
+  provider=$(get_current_config_from_file "$effective_settings")
+
+  if [ "$DOCTOR_JSON_MODE" != "true" ]; then
+    echo ""
+    echo -e "${BOLD}Doctor:${NC}"
+    echo "  Account: $CURRENT_ACCOUNT"
+    echo "  Scope: $effective_scope"
+    echo "  Provider: $(get_friendly_name "$provider")"
+    echo "  Settings: $effective_settings"
+    echo ""
+  fi
+
+  doctor_add_check "jq" "pass" "jq is installed" "Path: $(command -v jq)"
+
+  if claude_bin=$(get_claude_bin 2>/dev/null); then
+    doctor_add_check "claude" "pass" "Claude Code CLI is installed" "Path: $claude_bin"
+  else
+    doctor_add_check "claude" "fail" "Claude Code CLI is not available in PATH" "" "Install with: npm install -g @anthropic-ai/claude-code"
+  fi
+
+  doctor_check_json_file "accounts" "$ACCOUNTS_FILE" "Account registry"
+  doctor_check_json_file "state" "$STATE_FILE" "State file"
+  doctor_check_json_file "provider_catalog" "$PROVIDERS_FILE" "Provider catalog"
+  doctor_check_json_file "custom_providers" "$CUSTOM_PROVIDERS_FILE" "Custom provider catalog"
+  doctor_check_json_file "profiles" "$PROFILES_FILE" "Profile registry"
+
+  if ! jq -e --arg name "$CURRENT_ACCOUNT" '.accounts[$name] != null' "$ACCOUNTS_FILE" > /dev/null 2>&1; then
+    doctor_add_check "active_account" "fail" "Active account is missing from the registry" "Account: $CURRENT_ACCOUNT" "Use: claude-switch account use <name>"
+  else
+    doctor_add_check "active_account" "pass" "Active account is registered" "Account: $CURRENT_ACCOUNT"
+  fi
+
+  doctor_check_json_file "global_settings" "$GLOBAL_SETTINGS" "Global settings" || true
+
+  if [ -f "$PROJECT_SETTINGS" ]; then
+    doctor_check_json_file "project_settings" "$PROJECT_SETTINGS" "Project override" || true
+  else
+    doctor_add_check "project_settings" "pass" "No project override present" "Path: $PROJECT_SETTINGS"
+  fi
+
+  doctor_check_json_file "effective_settings" "$effective_settings" "Effective settings" || true
+
+  if has_account_auth_state "$CURRENT_ACCOUNT"; then
+    doctor_add_check "auth" "pass" "Active account has Claude authentication state"
+  else
+    if [ "$provider" = "claude" ]; then
+      doctor_add_check "auth" "fail" "Claude OAuth is configured but no account auth state was found" "" "Run: claude-switch account login $CURRENT_ACCOUNT"
+    else
+      doctor_add_check "auth" "warn" "No Claude auth state found for the active account" "Current provider uses $(get_friendly_name "$provider"), so this may be expected"
+    fi
+  fi
+
+  doctor_check_local_provider "$provider"
+
+  if [ "$DOCTOR_JSON_MODE" = "true" ]; then
+    doctor_emit_json
+  else
+    local overall_status="healthy"
+    if [ "$DOCTOR_HAS_FAILURES" = "true" ]; then
+      overall_status="broken"
+    elif [ "$DOCTOR_HAS_WARNINGS" = "true" ]; then
+      overall_status="degraded"
+    fi
+
+    echo ""
+    echo -e "${BOLD}Summary:${NC} $overall_status"
+    echo ""
+  fi
+
+  if [ "$DOCTOR_HAS_FAILURES" = "true" ]; then
+    return 1
+  fi
+
+  return 0
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -535,12 +2553,143 @@ validate_model_name() {
 clear_all_models() {
   local tmp_settings
   tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-  jq 'del(.env.ANTHROPIC_MODEL,
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL,
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL,
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL)' \
-     "$SETTINGS" > "$tmp_settings"
+  if [ "$CURRENT_SCOPE" = "project" ]; then
+    jq '.env.ANTHROPIC_MODEL = null |
+        .env.ANTHROPIC_DEFAULT_OPUS_MODEL = null |
+        .env.ANTHROPIC_DEFAULT_SONNET_MODEL = null |
+        .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = null' \
+       "$SETTINGS" > "$tmp_settings"
+  else
+    jq 'del(.env.ANTHROPIC_MODEL,
+            .env.ANTHROPIC_DEFAULT_OPUS_MODEL,
+            .env.ANTHROPIC_DEFAULT_SONNET_MODEL,
+            .env.ANTHROPIC_DEFAULT_HAIKU_MODEL)' \
+       "$SETTINGS" > "$tmp_settings"
+  fi
   mv "$tmp_settings" "$SETTINGS"
+}
+
+clear_provider_connection() {
+  local tmp_settings
+  tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
+
+  if [ "$CURRENT_SCOPE" = "project" ]; then
+    jq '.env.ANTHROPIC_AUTH_TOKEN = null |
+        .env.ANTHROPIC_BASE_URL = null' \
+       "$SETTINGS" > "$tmp_settings"
+  else
+    jq 'del(.env.ANTHROPIC_AUTH_TOKEN, .env.ANTHROPIC_BASE_URL)' \
+       "$SETTINGS" > "$tmp_settings"
+  fi
+
+  mv "$tmp_settings" "$SETTINGS"
+}
+
+provider_config_needs_refresh() {
+  local provider="$1"
+
+  case "$provider" in
+    zai)
+      if jq -e '.env.ANTHROPIC_DEFAULT_OPUS_MODEL != null or .env.ANTHROPIC_DEFAULT_SONNET_MODEL != null or .env.ANTHROPIC_DEFAULT_HAIKU_MODEL != null' "$SETTINGS" > /dev/null 2>&1; then
+        return 0
+      fi
+      return 1
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+apply_catalog_provider() {
+  local provider="$1"
+  local override_model="$2"
+  local token
+  local base_url
+  local mapping_strategy
+  local tmp_settings
+
+  if ! provider_exists "$provider"; then
+    return 1
+  fi
+
+  base_url=$(get_provider_base_url "$provider")
+  mapping_strategy=$(get_provider_mapping_strategy "$provider")
+
+  if ! token=$(resolve_provider_auth_token "$provider"); then
+    local first_env
+    first_env=$(jq -sr --arg provider "$provider" \
+      '((.[0].providers // {}) + (.[1].providers // {}))[$provider].auth_env[0] // "API_KEY"' \
+      "$PROVIDERS_FILE" "$CUSTOM_PROVIDERS_FILE" 2>/dev/null)
+    echo -e "${RED}❌ ${first_env} not configured${NC}"
+    echo "Configure it in: ~/.claude/api-keys.env"
+    echo "Or run: claude-switch keys"
+    return 1
+  fi
+
+  clear_all_models
+  tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
+
+  case "$mapping_strategy" in
+    provider-managed)
+      jq --arg token "$token" \
+         --arg base_url "$base_url" \
+         '.env.ANTHROPIC_AUTH_TOKEN = $token |
+          .env.ANTHROPIC_BASE_URL = $base_url' \
+         "$SETTINGS" > "$tmp_settings"
+      ;;
+    fixed)
+      jq --arg token "$token" \
+         --arg base_url "$base_url" \
+         --arg opus "$(get_provider_model_value "$provider" "opus")" \
+         --arg sonnet "$(get_provider_model_value "$provider" "sonnet")" \
+         --arg haiku "$(get_provider_model_value "$provider" "haiku")" \
+         '.env.ANTHROPIC_AUTH_TOKEN = $token |
+          .env.ANTHROPIC_BASE_URL = $base_url |
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet |
+          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku' \
+         "$SETTINGS" > "$tmp_settings"
+      ;;
+    single-model)
+      local selected_model="$override_model"
+      if [ -z "$selected_model" ]; then
+        selected_model="${OPENROUTER_DEFAULT_MODEL:-$(get_provider_default_model "$provider")}"
+      fi
+      if [ -z "$selected_model" ]; then
+        echo -e "${RED}❌ No model specified${NC}"
+        echo "Usage: claude-switch openrouter:<model>"
+        echo ""
+        echo "Popular Claude models on OpenRouter:"
+        echo "  anthropic/claude-opus-4.6       (Claude Opus 4.6 - latest)"
+        echo "  anthropic/claude-sonnet-4     (Claude Sonnet 4.5)"
+        echo "  anthropic/claude-haiku-4      (Claude Haiku 4.5)"
+        echo ""
+        echo "Example: claude-switch openrouter:anthropic/claude-opus-4.6"
+        echo ""
+        echo "Or set OPENROUTER_DEFAULT_MODEL in ~/.claude/api-keys.env"
+        rm -f "$tmp_settings"
+        return 1
+      fi
+      jq --arg token "$token" \
+         --arg base_url "$base_url" \
+         --arg model "$selected_model" \
+         '.env.ANTHROPIC_AUTH_TOKEN = $token |
+          .env.ANTHROPIC_BASE_URL = $base_url |
+          .env.ANTHROPIC_API_KEY = "" |
+          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $model |
+          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $model |
+          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $model' \
+         "$SETTINGS" > "$tmp_settings"
+      ;;
+    *)
+      rm -f "$tmp_settings"
+      return 1
+      ;;
+  esac
+
+  mv "$tmp_settings" "$SETTINGS"
+  return 0
 }
 
 apply_config() {
@@ -557,161 +2706,16 @@ apply_config() {
 
   cp "$SETTINGS" "$BACKUP_DIR/settings.json.backup-$(date +%Y%m%d-%H%M%S)"
 
+  if provider_exists "$provider" && [ "$provider" != "claude" ]; then
+    apply_catalog_provider "$provider" "$override_model" || return 1
+    chmod 600 "$SETTINGS"
+    return 0
+  fi
+
   case "$provider" in
     claude)
       clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq 'del(.env.ANTHROPIC_AUTH_TOKEN, .env.ANTHROPIC_BASE_URL)' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    anthropic-api)
-      validate_key "ANTHROPIC_API_KEY" || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$ANTHROPIC_API_KEY" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.anthropic.com" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "claude-opus-4-6" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "claude-sonnet-4-5-20250929" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "claude-haiku-4-20250920"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    zai)
-      local api_key="${ZAI_API_KEY:-$GLM_API_KEY}"
-      if [ -z "$api_key" ]; then
-        echo -e "${RED}❌ ZAI_API_KEY (or GLM_API_KEY) not configured${NC}"
-        echo "Configure it in: ~/.claude/api-keys.env"
-        echo "Or run: claude-switch keys"
-        return 1
-      fi
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$api_key" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "glm-4.7" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "glm-4.7" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "glm-4.5-flash"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    deepseek)
-      validate_key "DEEPSEEK_API_KEY" || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$DEEPSEEK_API_KEY" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "deepseek-chat" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "deepseek-chat" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "deepseek-chat"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    kimi)
-      validate_key "KIMI_API_KEY" || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$KIMI_API_KEY" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.moonshot.ai/anthropic" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "moonshot-v1-128k" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "moonshot-v1-32k" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "moonshot-v1-8k"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    qwen)
-      validate_key "SILICONFLOW_API_KEY" || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$SILICONFLOW_API_KEY" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.siliconflow.cn/v1/anthropic" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "Qwen/Qwen2.5-Coder-32B-Instruct" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "Qwen/Qwen2.5-Coder-14B-Instruct" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "Qwen/Qwen2.5-Coder-7B-Instruct"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    groq)
-      validate_key "GROQ_API_KEY" || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$GROQ_API_KEY" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.groq.com/openai/v1" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "llama-3.3-70b-versatile" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "llama-3.3-70b-versatile" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "mixtral-8x7b-32768"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    together)
-      validate_key "TOGETHER_API_KEY" || return 1
-      clear_all_models
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$TOGETHER_API_KEY" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.together.xyz/v1" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo" |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo" |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = "mistralai/Mixtral-8x7B-Instruct-v0.1"' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
-      ;;
-
-    openrouter)
-      validate_key "OPENROUTER_API_KEY" || return 1
-      clear_all_models
-      local opus_model=""
-      if [ -n "$override_model" ]; then
-        opus_model="$override_model"
-      elif [ -n "$OPENROUTER_DEFAULT_MODEL" ]; then
-        opus_model="$OPENROUTER_DEFAULT_MODEL"
-      else
-        echo -e "${RED}❌ No model specified${NC}"
-        echo "Usage: claude-switch openrouter:<model>"
-        echo ""
-        echo "Popular Claude models on OpenRouter:"
-        echo "  anthropic/claude-opus-4.6       (Claude Opus 4.6 - latest)"
-        echo "  anthropic/claude-sonnet-4     (Claude Sonnet 4.5)"
-        echo "  anthropic/claude-haiku-4      (Claude Haiku 4.5)"
-        echo ""
-        echo "Example: claude-switch openrouter:anthropic/claude-opus-4.6"
-        echo ""
-        echo "Or set OPENROUTER_DEFAULT_MODEL in ~/.claude/api-keys.env"
-        return 1
-      fi
-      local tmp_settings
-      tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
-      jq --arg token "$OPENROUTER_API_KEY" \
-         --arg opus "$opus_model" \
-         '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://openrouter.ai/api" |
-          .env.ANTHROPIC_API_KEY = "" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $opus |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $opus' \
-         "$SETTINGS" > "$tmp_settings"
-      mv "$tmp_settings" "$SETTINGS"
+      clear_provider_connection
       ;;
 
     ollama)
@@ -804,79 +2808,182 @@ apply_config() {
   return 0
 }
 
+run_switch_flow() {
+  local raw_provider="$1"
+  local show_hint="${2:-true}"
+  local auto_yes="${3:-$AUTO_YES}"
+  local provider
+  local override_model
+  local current
+  local current_name
+  local target_name
+
+  IFS=':' read -r provider override_model <<< "$raw_provider"
+
+  if [ -n "$override_model" ]; then
+    validate_model_name "$override_model" || return 1
+  fi
+
+  case "$provider" in
+    z.ai|glm) provider="zai" ;;
+  esac
+
+  current=$(get_current_config_for_scope)
+  current_name=$(get_friendly_name "$current")
+
+  echo -e "${YELLOW}Current status:${NC} $current_name"
+
+  if [ "$current" = "$provider" ] && [ -z "$override_model" ]; then
+    if ! provider_config_needs_refresh "$provider"; then
+      echo -e "${GREEN}✓${NC} Already configured for $(get_friendly_name "$provider")"
+      return 0
+    fi
+    echo -e "${YELLOW}Refreshing:${NC} $(get_friendly_name "$provider") to normalize legacy settings"
+  fi
+
+  target_name=$(get_friendly_name "$provider")
+  if [ -n "$override_model" ]; then
+    target_name="$target_name ($override_model)"
+  fi
+
+  echo -e "${YELLOW}Switch to:${NC} $target_name"
+  if [ "$auto_yes" = "true" ]; then
+    echo "Confirmation: auto-approved via --yes"
+  else
+    read -p "Confirm? [y/N] " -n 1 -r
+    echo
+
+    if [[ ! $REPLY =~ ^[SsYy]$ ]]; then
+      echo "Operation cancelled"
+      return 1
+    fi
+  fi
+
+  ensure_settings_file
+
+  if apply_config "$provider" "$override_model"; then
+    echo -e "${GREEN}✅ Configured for $target_name${NC}"
+    show_applied_model_mapping "$provider"
+
+    if pgrep -f "node.*claude-code" > /dev/null || pgrep -f "@anthropic-ai/claude-code" > /dev/null; then
+      echo -e "\n${YELLOW}⚠️  Claude Code is running${NC}"
+      if [ "$auto_yes" = "true" ]; then
+        echo "Skip killing active sessions in --yes mode"
+      else
+        read -p "Kill active sessions? [y/N] " -n 1 -r
+        echo
+
+        if [[ $REPLY =~ ^[SsYy]$ ]]; then
+          pkill -f "node.*claude-code" 2>/dev/null
+          pkill -f "@anthropic-ai/claude-code" 2>/dev/null
+          echo -e "${GREEN}✓${NC} Sessions terminated"
+        fi
+      fi
+    fi
+
+    if [ "$show_hint" = "true" ]; then
+      show_launch_hint
+    fi
+    return 0
+  fi
+
+  echo -e "${RED}❌ Configuration failed${NC}"
+  return 1
+}
+
+handle_exec_command() {
+  local provider_spec=""
+  local auto_yes="$AUTO_YES"
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -y|--yes)
+        auto_yes="true"
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        break
+        ;;
+      *)
+        if [ -z "$provider_spec" ]; then
+          provider_spec="$1"
+          shift
+        else
+          break
+        fi
+        ;;
+    esac
+  done
+
+  if [ -n "$provider_spec" ]; then
+    run_switch_flow "$provider_spec" false "$auto_yes" || return 1
+  fi
+
+  show_launch_summary
+
+  launch_claude_for_account "$CURRENT_ACCOUNT" "$@"
+}
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # MAIN
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-case "$1" in
+if [ "${1:-}" = "-y" ] || [ "${1:-}" = "--yes" ]; then
+  AUTO_YES="true"
+  shift
+fi
+
+case "${1:-}" in
   ""|help|-h|--help) show_help; exit 0 ;;
   wizard|config) run_wizard; exit 0 ;;
-  keys|docs) show_key_docs; exit 0 ;;
-  list|ls) list_providers; exit 0 ;;
-  status|current) show_status; exit 0 ;;
-  models) show_model_mapping "$2"; exit 0 ;;
   update) do_update; exit 0 ;;
+  update-config) do_update_config; exit 0 ;;
   check-updates) check_updates; exit 0 ;;
   --version) echo "v${VERSION}"; exit 0 ;;
 esac
 
-IFS=':' read -r provider override_model <<< "$1"
-
-if [ -n "$override_model" ]; then
-  validate_model_name "$override_model" || exit 1
+if [ "${1:-}" = "doctor" ] && ! command -v jq > /dev/null 2>&1; then
+  shift
+  run_doctor_missing_jq "$@"
+  exit $?
 fi
 
-case "$provider" in
-  z.ai|glm) provider="zai" ;;
+ensure_switcher_state
+
+case "$1" in
+  keys|docs) show_key_docs; exit 0 ;;
+  list|ls) list_providers; exit 0 ;;
+  status|current) show_status; exit 0 ;;
+  where) show_where; exit 0 ;;
+  doctor) shift; run_doctor "$@"; exit $? ;;
+  models) show_model_mapping "$2"; exit 0 ;;
+  account) shift; handle_account_command "$@"; exit $? ;;
+  profile) shift; handle_profile_command "$@"; exit $? ;;
+  provider) shift; handle_provider_command "$@"; exit $? ;;
+  global) shift; handle_scoped_switch_command "global" "$@"; exit $? ;;
+  project) shift; handle_scoped_switch_command "project" "$@"; exit $? ;;
+  reset)
+    shift
+    case "${1:-}" in
+      project) reset_project_scope; exit $? ;;
+      *)
+        echo -e "${RED}❌ Unknown reset target:${NC} ${1:-}"
+        echo "Usage: claude-switch reset project"
+        exit 1
+        ;;
+    esac
+    ;;
+  exec) shift; handle_exec_command "$@"; exit $? ;;
 esac
 
-current=$(get_current_config)
-current_name=$(get_friendly_name "$current")
-
-echo -e "${YELLOW}Current status:${NC} $current_name"
-
-if [ "$current" = "$provider" ] && [ -z "$override_model" ]; then
-  echo -e "${GREEN}✓${NC} Already configured for $(get_friendly_name "$provider")"
-  exit 0
+if [ "${2:-}" = "-y" ] || [ "${2:-}" = "--yes" ]; then
+  AUTO_YES="true"
 fi
 
-target_name=$(get_friendly_name "$provider")
-if [ -n "$override_model" ]; then
-  target_name="$target_name ($override_model)"
-fi
-
-echo -e "${YELLOW}Switch to:${NC} $target_name"
-read -p "Confirm? [y/N] " -n 1 -r
-echo
-
-if [[ ! $REPLY =~ ^[SsYy]$ ]]; then
-  echo "Operation cancelled"
-  exit 0
-fi
-
-if apply_config "$provider" "$override_model"; then
-  echo -e "${GREEN}✅ Configured for $target_name${NC}"
-
-  echo ""
-  echo -e "${BOLD}Model Mapping:${NC}"
-  echo -e "  Opus   → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_OPUS_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
-  echo -e "  Sonnet → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_SONNET_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
-  echo -e "  Haiku  → ${GREEN}$(jq -r '.env.ANTHROPIC_DEFAULT_HAIKU_MODEL // "default"' "$SETTINGS" 2>/dev/null)${NC}"
-
-  if pgrep -f "node.*claude-code" > /dev/null || pgrep -f "@anthropic-ai/claude-code" > /dev/null; then
-    echo -e "\n${YELLOW}⚠️  Claude Code is running${NC}"
-    read -p "Kill active sessions? [y/N] " -n 1 -r
-    echo
-
-    if [[ $REPLY =~ ^[SsYy]$ ]]; then
-      pkill -f "node.*claude-code" 2>/dev/null
-      pkill -f "@anthropic-ai/claude-code" 2>/dev/null
-      echo -e "${GREEN}✓${NC} Sessions terminated"
-    fi
-  fi
-
-  echo -e "\n${GREEN}✓${NC} Start with: ${BOLD}claude${NC}"
-else
-  echo -e "${RED}❌ Configuration failed${NC}"
-  exit 1
-fi
+use_scope_target "global" || exit 1
+run_switch_flow "$1" true "$AUTO_YES"
+exit $?

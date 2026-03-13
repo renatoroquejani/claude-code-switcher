@@ -17,11 +17,16 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BIN_SRC="$PROJECT_ROOT/bin/$SCRIPT_NAME"
 CONFIG_EXAMPLE="$PROJECT_ROOT/config/api-keys.env.example"
 ALIASES_SRC="$PROJECT_ROOT/config/aliases.sh"
+PROVIDERS_SRC="$PROJECT_ROOT/config/providers.json"
 
 # Destination paths
 BIN_DST="$HOME/.local/bin/$SCRIPT_NAME"
 CONFIG_DST="$HOME/.claude/api-keys.env"
 ALIAS_DST="$HOME/.claude/aliases.sh"
+SWITCHER_STATE_DIR="$HOME/.claude-switcher"
+PROVIDERS_DST="$SWITCHER_STATE_DIR/providers.json"
+CUSTOM_PROVIDERS_DST="$SWITCHER_STATE_DIR/custom-providers.json"
+PROFILES_DST="$SWITCHER_STATE_DIR/profiles.json"
 
 # Installation mode
 REMOTE_MODE=false
@@ -79,6 +84,7 @@ if [ ! -f "$BIN_SRC" ]; then
   TEMP_DIR=$(mktemp -d)
   BIN_SRC="$TEMP_DIR/$SCRIPT_NAME"
   ALIASES_SRC="$TEMP_DIR/aliases.sh"
+  PROVIDERS_SRC="$TEMP_DIR/providers.json"
 
   # Download main script
   download_file "$RAW_BASE_URL/bin/$SCRIPT_NAME" "$BIN_SRC" "main script"
@@ -87,6 +93,11 @@ if [ ! -f "$BIN_SRC" ]; then
   if ! download_file "$RAW_BASE_URL/config/aliases.sh" "$ALIASES_SRC" "aliases file" 2>/dev/null; then
     echo -e "${YELLOW}⚠️  Could not download aliases file, will create default${NC}"
     ALIASES_SRC=""
+  fi
+
+  if ! download_file "$RAW_BASE_URL/config/providers.json" "$PROVIDERS_SRC" "provider config" 2>/dev/null; then
+    echo -e "${YELLOW}⚠️  Could not download provider config, install will rely on the script bootstrap${NC}"
+    PROVIDERS_SRC=""
   fi
 else
   echo -e "${GREEN}✓${NC} Local installation detected"
@@ -170,6 +181,16 @@ else
   echo -e "${GREEN}✓${NC} ~/.claude exists"
 fi
 
+if [ ! -d "$SWITCHER_STATE_DIR" ]; then
+  mkdir -p "$SWITCHER_STATE_DIR/instances"
+  chmod 700 "$SWITCHER_STATE_DIR" "$SWITCHER_STATE_DIR/instances"
+  echo -e "${GREEN}✓${NC} Created ~/.claude-switcher"
+else
+  mkdir -p "$SWITCHER_STATE_DIR/instances"
+  chmod 700 "$SWITCHER_STATE_DIR" "$SWITCHER_STATE_DIR/instances" 2>/dev/null || true
+  echo -e "${GREEN}✓${NC} ~/.claude-switcher exists"
+fi
+
 if [ ! -d "$HOME/.claude/backups" ]; then
   mkdir -p "$HOME/.claude/backups"
   chmod 700 "$HOME/.claude/backups"
@@ -215,6 +236,28 @@ if [ "$NEEDS_UPDATE" = true ]; then
   cp "$BIN_SRC" "$BIN_DST"
   chmod 755 "$BIN_DST"
   echo -e "${GREEN}✓${NC} Script installed/updated"
+fi
+
+if [ -n "$PROVIDERS_SRC" ] && [ -f "$PROVIDERS_SRC" ]; then
+  cp "$PROVIDERS_SRC" "$PROVIDERS_DST"
+  chmod 600 "$PROVIDERS_DST"
+  echo -e "${GREEN}✓${NC} Provider config installed"
+fi
+
+if [ ! -f "$CUSTOM_PROVIDERS_DST" ]; then
+  cat > "$CUSTOM_PROVIDERS_DST" << 'EOF'
+{"version":1,"providers":{}}
+EOF
+  chmod 600 "$CUSTOM_PROVIDERS_DST"
+  echo -e "${GREEN}✓${NC} Custom provider registry initialized"
+fi
+
+if [ ! -f "$PROFILES_DST" ]; then
+  cat > "$PROFILES_DST" << 'EOF'
+{"profiles":{}}
+EOF
+  chmod 600 "$PROFILES_DST"
+  echo -e "${GREEN}✓${NC} Profile registry initialized"
 fi
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -17,9 +17,9 @@ test_zai_model_mapping() {
     local result
     result=$(get_zai_models)
 
-    assert_contains "$result" "opus:glm-4.7" || return 1
-    assert_contains "$result" "sonnet:glm-4.7" || return 1
-    assert_contains "$result" "haiku:glm-4.5-flash" || return 1
+    assert_contains "$result" "opus:provider-managed" || return 1
+    assert_contains "$result" "sonnet:provider-managed" || return 1
+    assert_contains "$result" "haiku:provider-managed" || return 1
 }
 
 # Test: DeepSeek model mapping returns correct models

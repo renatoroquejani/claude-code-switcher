@@ -11,8 +11,12 @@
 - **Cloud Providers:** Anthropic (Opus), Anthropic API, Z.AI (GLM), DeepSeek, Kimi, SiliconFlow (Qwen), Groq, Together AI, OpenRouter
 - **Local Providers:** Ollama, LM Studio
 - **Instant Switching:** Change models without manual reconfiguration
+- **Multi-Account Foundation:** Track multiple Claude instances with isolated state directories
+- **Named Profiles:** Reapply saved account/provider/scope combos in one command
+- **Custom Providers:** Register additional Anthropic-compatible endpoints without editing the script
 - **Interactive Wizard:** Guided setup for first-time users
 - **Auto-Update:** Built-in update mechanism to stay current
+- **Versioned Provider Catalog:** Provider presets live in `providers.json` and can be refreshed separately
 - **Package Management:** Ready for AUR and Homebrew distribution (internal use)
 - **Secure:** API keys stored with restricted permissions (chmod 600)
 - **Automatic Backups:** Settings backed up before every switch
@@ -70,14 +74,52 @@ claude-switch openrouter:anthropic/claude-opus-4
 # Switch to local Ollama model
 claude-switch ollama:qwen3-coder:7b
 
+# Switch without confirmation prompts
+claude-switch --yes zai
+
+# Apply a project-local override in .claude/settings.local.json
+claude-switch project zai
+claude-switch global claude
+claude-switch where
+claude-switch reset project
+
+# Run environment diagnostics
+claude-switch doctor
+claude-switch doctor --json
+
 # Interactive setup wizard
 claude-switch wizard
 
 # Update to latest version
 claude-switch update
+claude-switch update-config
 
 # Check current status
 claude-switch status
+
+# List accounts and switch the active account
+claude-switch account list
+claude-switch account create work
+claude-switch account use work
+claude-switch account login work
+claude-switch account test work
+
+# Save and reuse a named profile
+claude-switch profile save work-zai --provider zai
+claude-switch profile save work-zai --provider zai --yes
+claude-switch profile list
+claude-switch profile use work-zai
+
+# Register a custom provider
+claude-switch provider add acme --base-url https://acme.example/api/anthropic --auth-env ACME_API_KEY --mapping fixed --opus acme-opus --sonnet acme-sonnet --haiku acme-haiku
+claude-switch provider list
+claude-switch provider delete acme
+claude-switch models acme
+
+# Launch Claude for the active account
+claude-switch exec -- -p "hello"
+claude-switch exec zai -- -p "use Z.AI for this session"
+claude-switch exec --yes zai -- -p "use Z.AI without prompts"
 
 # List all providers
 claude-switch list
@@ -100,7 +142,7 @@ claude-switch help
 |----------|---------|---------|---------------|
 | Claude | `claude-switch claude` | $20/month (Pro) | Opus/Sonnet/Haiku → Official |
 | Claude API | `claude-switch anthropic-api` | Per-use | Opus/Sonnet/Haiku → Official |
-| Z.AI | `claude-switch zai` | $15/month | Opus→4.7, Sonnet→4.6, Haiku→4.5-Flash |
+| Z.AI | `claude-switch zai` | $15/month | Provider-managed |
 | DeepSeek | `claude-switch deepseek` | $0.14/1M tokens | All tiers → deepseek-chat |
 | Kimi | `claude-switch kimi` | Variable | Opus→128k, Sonnet→32k, Haiku→8k |
 | Qwen | `claude-switch qwen` | $0.42/1M tokens | Opus→32B, Sonnet→14B, Haiku→7B |
@@ -146,6 +188,49 @@ source ~/.bashrc
 
 **Where to get API keys:** Run `claude-switch keys` for direct links to each provider.
 
+## Accounts
+
+Phase 1 introduces account-aware state management.
+
+- `default` points to your existing `~/.claude` directory, so current single-account behavior keeps working
+- new accounts live under `~/.claude-switcher/instances/<name>`
+- provider switches always target the active account
+- `claude-switch exec` launches Claude with the correct runtime for the active account
+- `claude-switch project <provider>` writes a local override to `.claude/settings.local.json`
+- `claude-switch global <provider>` updates the active account global settings
+- `claude-switch where` shows which file is effective in the current directory
+- `claude-switch doctor` validates the active account, settings files, auth state, and local runtimes
+- provider presets are stored in `~/.claude-switcher/providers.json`
+- custom providers are stored in `~/.claude-switcher/custom-providers.json`
+- saved profiles are stored in `~/.claude-switcher/profiles.json`
+
+Examples:
+
+```bash
+claude-switch account list
+claude-switch account create work
+claude-switch account import-current personal
+claude-switch account use work
+claude-switch account login work
+claude-switch account test work
+claude-switch profile save work-zai --provider zai
+claude-switch profile save work-zai --provider zai --yes
+claude-switch profile use work-zai
+claude-switch provider add acme --base-url https://acme.example/api/anthropic --auth-env ACME_API_KEY --mapping fixed --opus acme-opus --sonnet acme-sonnet --haiku acme-haiku
+claude-switch provider list
+claude-switch provider delete acme
+claude-switch project zai
+claude-switch global claude
+claude-switch where
+claude-switch reset project
+claude-switch doctor
+claude-switch doctor --json
+claude-switch update-config
+claude-switch exec -- -p "hello from the active account"
+claude-switch exec zai -- -p "switch provider and launch"
+claude-switch status
+```
+
 ## Shell Aliases
 
 After installation, you can use convenient aliases (created during install):
@@ -175,7 +260,12 @@ cs-models    # Show model mapping
 cs-keys      # Show where to get API keys
 cs-help      # Show help
 cs-update    # Update to latest version
+cs-update-config  # Refresh provider presets
 cs-wizard    # Run configuration wizard
+cs-exec      # Launch Claude for the active account
+cs-accounts  # List accounts
+cs-profiles  # List profiles
+cs-providers # List custom providers
 ```
 
 **Ollama Quick Switches:**
@@ -196,7 +286,15 @@ claude-code-switcher/
 │   └── claude-switch          # Main executable script
 ├── config/
 │   ├── api-keys.env.example   # API key template
-│   └── aliases.sh              # Shell aliases
+│   ├── aliases.sh             # Shell aliases
+│   └── providers.json         # Provider preset catalog
+├── ~/.claude-switcher/
+│   ├── accounts.json          # Account registry
+│   ├── custom-providers.json  # Custom provider registry
+│   ├── instances/             # Isolated Claude runtime directories
+│   ├── profiles.json          # Saved account/provider profiles
+│   ├── providers.json         # Installed provider preset catalog
+│   └── state.json             # Active account pointer
 ├── dist/
 │   ├── arch/                  # AUR package (internal use)
 │   └── homebrew/              # Homebrew formula (internal use)

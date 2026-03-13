@@ -80,7 +80,7 @@ Chinese AI provider with competitive pricing.
 | **Alias** | `zai`, `z.ai`, `glm` (legacy) |
 | **Cost** | $15/month (annual ~$180/year) |
 | **Sign Up** | https://z.ai/manage-apikey/apikey-list |
-| **Model Mapping** | Opus→glm-4.7, Sonnet→glm-4.6, Haiku→glm-4.5-flash |
+| **Model Mapping** | Provider-managed |
 | **Speed** | Fast |
 | **Privacy** | Standard cloud |
 
@@ -346,7 +346,7 @@ claude-switch lmstudio
 |----------|-----------|-------------|------------|----------|
 | **Claude (OAuth)** | claude-opus-4-6 | claude-sonnet-4-5-20250929 | claude-haiku-4-20250920 | Official models |
 | **Claude (API)** | claude-opus-4-6 | claude-sonnet-4-5-20250929 | claude-haiku-4-20250920 | Official models |
-| **Z.AI** | glm-4.7 | glm-4.6 | glm-4.5-flash | Size-based |
+| **Z.AI** | provider-managed | provider-managed | provider-managed | Provider-managed |
 | **DeepSeek** | deepseek-chat | deepseek-chat | deepseek-chat | Single model |
 | **Kimi** | moonshot-v1-128k | moonshot-v1-32k | moonshot-v1-8k | Context size |
 | **Qwen** | Qwen2.5-Coder-32B | Qwen2.5-Coder-14B | Qwen2.5-Coder-7B | Parameter count |

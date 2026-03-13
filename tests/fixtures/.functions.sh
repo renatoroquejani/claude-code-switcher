@@ -32,8 +32,7 @@ get_anthropic_api_models() {
 
 # Z.AI (GLM models)
 get_zai_models() {
-  # GLM-4.7 for Opus/Sonnet (best models), GLM-4.5-Flash for Haiku (fast)
-  echo "opus:glm-4.7 sonnet:glm-4.7 haiku:glm-4.5-flash"
+  echo "opus:provider-managed sonnet:provider-managed haiku:provider-managed"
 }
 
 # DeepSeek
@@ -108,7 +107,7 @@ show_help() {
   echo -e "${YELLOW}CLOUD PROVIDERS:${NC}"
   echo "  ${GREEN}claude${NC}            Anthropic Claude (OAuth - no API key)"
   echo "  ${GREEN}anthropic${NC}         Anthropic Claude API (requires key)"
-  echo "  ${GREEN}zai / z.ai${NC}        Z.AI GLM models (4.7, 4.6, 4.5-Flash)"
+  echo "  ${GREEN}zai / z.ai${NC}        Z.AI GLM (provider-managed tier mapping)"
   echo "  ${GREEN}deepseek${NC}          DeepSeek Chat/Coder"
   echo "  ${GREEN}kimi${NC}              Kimi (Moonshot AI)"
   echo "  ${GREEN}qwen${NC}              Qwen Coder (7B, 14B, 32B)"
@@ -128,7 +127,7 @@ show_help() {
   echo -e "${YELLOW}EXAMPLES:${NC}"
   echo "  claude-switch claude           # Use Anthropic Claude (OAuth)"
   echo "  claude-switch anthropic        # Use Anthropic Claude API (requires key)"
-  echo "  claude-switch zai              # Use Z.AI GLM-4.7 (Opus/Sonnet/Haiku mapped)"
+  echo "  claude-switch zai              # Use Z.AI GLM"
   echo "  claude-switch openrouter:qwen/qwen-2.5-coder-32b"
   echo "  claude-switch ollama           # Use local Ollama (qwen3-coder:7b default)"
   echo "  claude-switch ollama:qwen3-coder:14b  # Use specific model"
@@ -159,7 +158,7 @@ show_key_docs() {
   echo ""
   echo "  ${GREEN}Z.AI:${NC} https://z.ai/manage-apikey/apikey-list"
   echo "    → Plans: \$3/month or \$15/month (annual ~\$180/year)"
-  echo "    → Models: GLM-4.7, GLM-4.6, GLM-4.5-Flash"
+  echo "    → Models: provider-managed by Z.AI"
   echo ""
   echo "  ${GREEN}DeepSeek:${NC} https://platform.deepseek.com/api_keys"
   echo "    → \$0.14/1M input, \$0.28/1M output"
@@ -198,7 +197,7 @@ list_providers() {
   echo -e "${YELLOW}CLOUD (paid):${NC}"
   echo "  claude     - Anthropic Claude OAuth (Opus/Sonnet/Haiku)"
   echo "  anthropic  - Anthropic Claude API (requires key)"
-  echo "  zai       - Z.AI GLM (4.7/4.6/4.5-Flash)"
+  echo "  zai       - Z.AI GLM (provider-managed)"
   echo "  deepseek  - DeepSeek Chat/Coder"
   echo "  kimi      - Kimi (Moonshot AI)"
   echo "  qwen      - Qwen Coder (32B/14B/7B)"
@@ -241,9 +240,9 @@ show_model_mapping() {
       echo -e "  Haiku   →  claude-haiku-4-20250920"
       ;;
     zai|z.ai|glm)
-      echo -e "  Opus    →  glm-4.7"
-      echo -e "  Sonnet  →  glm-4.7"
-      echo -e "  Haiku   →  glm-4.5-flash"
+      echo -e "  Opus    →  <provider-managed>"
+      echo -e "  Sonnet  →  <provider-managed>"
+      echo -e "  Haiku   →  <provider-managed>"
       ;;
     deepseek)
       echo -e "  Opus    →  deepseek-chat"
@@ -603,22 +602,11 @@ apply_config() {
       # Clear any stale model settings first
       clear_all_models
 
-      # Map tiers to Z.AI models
-      opus_model="glm-4.7"
-      sonnet_model="glm-4.7"
-      haiku_model="glm-4.5-flash"
-
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$api_key" \
-         --arg opus "$opus_model" \
-         --arg sonnet "$sonnet_model" \
-         --arg haiku "$haiku_model" \
          '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku' \
+          .env.ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic"' \
          "$SETTINGS" > "$tmp_settings"
       mv "$tmp_settings" "$SETTINGS"
       ;;
@@ -716,4 +704,3 @@ apply_config() {
          "$SETTINGS" > "$tmp_settings"
       mv "$tmp_settings" "$SETTINGS"
       ;;
-

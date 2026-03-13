@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "providers": {
+    "anthropic-api": {
+      "base_url": "https://api.anthropic.com",
+      "auth_env": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "claude-opus-4-6",
+        "sonnet": "claude-sonnet-4-5-20250929",
+        "haiku": "claude-haiku-4-20250920"
+      }
+    },
+    "zai": {
+      "base_url": "https://api.z.ai/api/anthropic",
+      "auth_env": [
+        "ZAI_API_KEY",
+        "GLM_API_KEY"
+      ],
+      "mapping_strategy": "provider-managed"
+    },
+    "deepseek": {
+      "base_url": "https://api.deepseek.com/anthropic",
+      "auth_env": [
+        "DEEPSEEK_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "deepseek-chat",
+        "sonnet": "deepseek-chat",
+        "haiku": "deepseek-chat"
+      }
+    },
+    "kimi": {
+      "base_url": "https://api.moonshot.ai/anthropic",
+      "auth_env": [
+        "KIMI_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "moonshot-v1-128k",
+        "sonnet": "moonshot-v1-32k",
+        "haiku": "moonshot-v1-8k"
+      }
+    },
+    "qwen": {
+      "base_url": "https://api.siliconflow.cn/v1/anthropic",
+      "auth_env": [
+        "SILICONFLOW_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "Qwen/Qwen2.5-Coder-32B-Instruct",
+        "sonnet": "Qwen/Qwen2.5-Coder-14B-Instruct",
+        "haiku": "Qwen/Qwen2.5-Coder-7B-Instruct"
+      }
+    },
+    "groq": {
+      "base_url": "https://api.groq.com/openai/v1",
+      "auth_env": [
+        "GROQ_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "llama-3.3-70b-versatile",
+        "sonnet": "llama-3.3-70b-versatile",
+        "haiku": "mixtral-8x7b-32768"
+      }
+    },
+    "together": {
+      "base_url": "https://api.together.xyz/v1",
+      "auth_env": [
+        "TOGETHER_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "sonnet": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+        "haiku": "mistralai/Mixtral-8x7B-Instruct-v0.1"
+      }
+    },
+    "openrouter": {
+      "base_url": "https://openrouter.ai/api",
+      "auth_env": [
+        "OPENROUTER_API_KEY"
+      ],
+      "mapping_strategy": "single-model",
+      "default_model": "anthropic/claude-opus-4.6"
+    }
+  }
+}

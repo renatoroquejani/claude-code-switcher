@@ -25,9 +25,17 @@ readonly PROJECT_DIR="$(dirname "$TEST_DIR")"
 readonly FIXTURES_DIR="$TEST_DIR/fixtures"
 readonly SETTINGS="${FIXTURES_DIR}/test-settings.json"
 readonly BACKUP_DIR="${FIXTURES_DIR}/backups"
+readonly SWITCHER_STATE_ROOT="${FIXTURES_DIR}/state-root"
+readonly SWITCHER_INSTANCES_DIR="${SWITCHER_STATE_ROOT}/instances"
 
 # Create fixtures directories
 mkdir -p "$BACKUP_DIR"
+mkdir -p "$SWITCHER_INSTANCES_DIR"
+
+reset_switcher_state_root() {
+    rm -rf "$SWITCHER_STATE_ROOT"
+    mkdir -p "$SWITCHER_INSTANCES_DIR"
+}
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # SOURCE MAIN SCRIPT FUNCTIONS
@@ -39,9 +47,12 @@ source_bin_functions() {
     export VERSION="2.1.0-test"
     export SETTINGS="${FIXTURES_DIR}/test-settings.json"
     export BACKUP_DIR="${FIXTURES_DIR}/backups"
+    export SWITCHER_STATE_ROOT="${FIXTURES_DIR}/state-root"
+    export SWITCHER_INSTANCES_DIR="${SWITCHER_STATE_ROOT}/instances"
 
     # Create fixtures directories
     mkdir -p "$BACKUP_DIR"
+    mkdir -p "$SWITCHER_INSTANCES_DIR"
 
     # Read the main script and extract only function definitions
     # Skip the color definitions (lines 6-13) and main execution (lines 720+)
@@ -67,7 +78,10 @@ source_with_safeguards() {
     export VERSION="2.1.0-test"
     export SETTINGS="${FIXTURES_DIR}/test-settings.json"
     export BACKUP_DIR="${FIXTURES_DIR}/backups"
+    export SWITCHER_STATE_ROOT="${FIXTURES_DIR}/state-root"
+    export SWITCHER_INSTANCES_DIR="${SWITCHER_STATE_ROOT}/instances"
     mkdir -p "$BACKUP_DIR"
+    mkdir -p "$SWITCHER_INSTANCES_DIR"
 
     # Save current readonly status
     local readonly_vars=(GREEN YELLOW RED BLUE CYAN BOLD NC)
@@ -108,7 +122,7 @@ get_anthropic_models() {
 }
 
 get_zai_models() {
-  echo "opus:glm-4.7 sonnet:glm-4.7 haiku:glm-4.5-flash"
+  echo "opus:provider-managed sonnet:provider-managed haiku:provider-managed"
 }
 
 get_deepseek_models() {
@@ -266,21 +280,11 @@ apply_config() {
       fi
 
       clear_all_models
-      opus_model="glm-4.7"
-      sonnet_model="glm-4.7"
-      haiku_model="glm-4.5-flash"
-
       local tmp_settings
       tmp_settings=$(mktemp "${SETTINGS}.tmp.XXXXXX")
       jq --arg token "$api_key" \
-         --arg opus "$opus_model" \
-         --arg sonnet "$sonnet_model" \
-         --arg haiku "$haiku_model" \
          '.env.ANTHROPIC_AUTH_TOKEN = $token |
-          .env.ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic" |
-          .env.ANTHROPIC_DEFAULT_OPUS_MODEL = $opus |
-          .env.ANTHROPIC_DEFAULT_SONNET_MODEL = $sonnet |
-          .env.ANTHROPIC_DEFAULT_HAIKU_MODEL = $haiku' \
+          .env.ANTHROPIC_BASE_URL = "https://api.z.ai/api/anthropic"' \
          "$SETTINGS" > "$tmp_settings"
       mv "$tmp_settings" "$SETTINGS"
       ;;

@@ -55,9 +55,9 @@ test_switch_to_zai() {
     # Verify settings
     assert_json_key "$SETTINGS" ".env.ANTHROPIC_AUTH_TOKEN" "test-zai-key" "Auth token should be set" || return 1
     assert_json_key "$SETTINGS" ".env.ANTHROPIC_BASE_URL" "https://api.z.ai/api/anthropic" "Base URL should be Z.AI" || return 1
-    assert_json_key "$SETTINGS" ".env.ANTHROPIC_DEFAULT_OPUS_MODEL" "glm-4.7" "Opus model should be glm-4.7" || return 1
-    assert_json_key "$SETTINGS" ".env.ANTHROPIC_DEFAULT_SONNET_MODEL" "glm-4.7" "Sonnet model should be glm-4.7" || return 1
-    assert_json_key "$SETTINGS" ".env.ANTHROPIC_DEFAULT_HAIKU_MODEL" "glm-4.5-flash" "Haiku model should be glm-4.5-flash" || return 1
+    assert_json_key "$SETTINGS" ".env.ANTHROPIC_DEFAULT_OPUS_MODEL // \"null\"" "null" "Opus model should not be forced for Z.AI" || return 1
+    assert_json_key "$SETTINGS" ".env.ANTHROPIC_DEFAULT_SONNET_MODEL // \"null\"" "null" "Sonnet model should not be forced for Z.AI" || return 1
+    assert_json_key "$SETTINGS" ".env.ANTHROPIC_DEFAULT_HAIKU_MODEL // \"null\"" "null" "Haiku model should not be forced for Z.AI" || return 1
 
     unset ZAI_API_KEY
 }
@@ -75,6 +75,214 @@ test_switch_to_zai_legacy_key() {
     assert_json_key "$SETTINGS" ".env.ANTHROPIC_AUTH_TOKEN" "test-glm-key" "Should use legacy GLM_API_KEY" || return 1
 
     unset GLM_API_KEY
+}
+
+test_switch_to_zai_refreshes_legacy_model_overrides() {
+    local temp_home
+    local command_output
+    temp_home=$(create_test_home)
+
+    cat > "$temp_home/.claude/settings.json" << 'EOF'
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "test-zai-key",
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-4.7",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.7",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.5-flash"
+  }
+}
+EOF
+
+    command_output=$(HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" --yes zai 2>&1) || return 1
+
+    assert_contains "$command_output" "Refreshing:" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" ".env.ANTHROPIC_DEFAULT_OPUS_MODEL // \"null\"" "null" "Legacy Opus override should be removed for Z.AI" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" ".env.ANTHROPIC_DEFAULT_SONNET_MODEL // \"null\"" "null" "Legacy Sonnet override should be removed for Z.AI" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" ".env.ANTHROPIC_DEFAULT_HAIKU_MODEL // \"null\"" "null" "Legacy Haiku override should be removed for Z.AI" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_provider_catalog_drives_model_presets() {
+    local temp_home
+    local temp_config
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" status > /dev/null || return 1
+    temp_config="$temp_home/.claude-switcher/providers.json"
+
+    jq '.providers.deepseek.models.opus = "custom-deepseek-opus" |
+        .providers.deepseek.models.sonnet = "custom-deepseek-sonnet" |
+        .providers.deepseek.models.haiku = "custom-deepseek-haiku"' \
+        "$temp_config" > "$temp_config.tmp" && mv "$temp_config.tmp" "$temp_config" || return 1
+
+    HOME="$temp_home" DEEPSEEK_API_KEY="test-deepseek-key" bash "$PROJECT_DIR/bin/claude-switch" --yes deepseek > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_DEFAULT_OPUS_MODEL' "custom-deepseek-opus" "Provider catalog should define the Opus preset" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_DEFAULT_SONNET_MODEL' "custom-deepseek-sonnet" "Provider catalog should define the Sonnet preset" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_DEFAULT_HAIKU_MODEL' "custom-deepseek-haiku" "Provider catalog should define the Haiku preset" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_update_config_replaces_provider_catalog() {
+    local temp_home
+    local remote_dir
+    local remote_file
+    local providers_file
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" status > /dev/null || return 1
+    providers_file="$temp_home/.claude-switcher/providers.json"
+
+    remote_dir=$(mktemp -d)
+    remote_file="$remote_dir/providers.json"
+    cat > "$remote_file" << 'EOF'
+{
+  "version": 99,
+  "providers": {
+    "anthropic-api": {
+      "base_url": "https://api.anthropic.com",
+      "auth_env": ["ANTHROPIC_API_KEY"],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "custom-opus",
+        "sonnet": "custom-sonnet",
+        "haiku": "custom-haiku"
+      }
+    }
+  }
+}
+EOF
+
+    CLAUDE_SWITCHER_CONFIG_URL="file://$remote_file" HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" update-config > /dev/null || return 1
+
+    assert_json_key "$providers_file" '.version' "99" "update-config should replace the local provider catalog" || return 1
+    assert_json_key "$providers_file" '.providers["anthropic-api"].models.opus' "custom-opus" "update-config should install the downloaded catalog" || return 1
+    assert_file_exists "$providers_file.backup" "update-config should keep a backup of the previous provider catalog" || return 1
+
+    rm -rf "$temp_home" "$remote_dir"
+}
+
+test_update_config_falls_back_to_local_checkout_copy() {
+    local temp_home
+    local providers_file
+    local command_output
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" status > /dev/null || return 1
+    providers_file="$temp_home/.claude-switcher/providers.json"
+
+    command_output=$(HOME="$temp_home" CLAUDE_SWITCHER_UPDATE_BASE_URL="https://example.invalid/claude-code-switcher" bash "$PROJECT_DIR/bin/claude-switch" update-config 2>&1) || return 1
+
+    assert_contains "$command_output" "using local checkout copy" || return 1
+    assert_file_exists "$providers_file" || return 1
+    assert_equals "1" "$(jq -r '.version' "$providers_file")" "Local fallback should install the bundled provider catalog" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_custom_provider_add_list_and_switch() {
+    local temp_home
+    local list_output
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" provider add acme \
+        --base-url "https://acme.example/api/anthropic" \
+        --auth-env "ACME_API_KEY" \
+        --mapping fixed \
+        --display-name "Acme AI" \
+        --opus "acme-opus" \
+        --sonnet "acme-sonnet" \
+        --haiku "acme-haiku" > /dev/null || return 1
+
+    list_output=$(HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" provider list 2>&1) || return 1
+    assert_contains "$list_output" "Acme AI" || return 1
+    assert_contains "$list_output" "acme" || return 1
+    assert_contains "$list_output" "mapping=fixed" || return 1
+
+    HOME="$temp_home" ACME_API_KEY="test-acme-key" bash "$PROJECT_DIR/bin/claude-switch" --yes acme > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_AUTH_TOKEN' "test-acme-key" "Custom provider should set the auth token" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_BASE_URL' "https://acme.example/api/anthropic" "Custom provider should set the base URL" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_DEFAULT_OPUS_MODEL' "acme-opus" "Custom provider should set Opus mapping" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_profile_save_and_use_reapplies_account_and_provider() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    HOME="$temp_home" DEEPSEEK_API_KEY="test-deepseek-key" bash "$PROJECT_DIR/bin/claude-switch" --yes deepseek > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" profile save work-deepseek > /dev/null || return 1
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use default > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" --yes claude > /dev/null || return 1
+    HOME="$temp_home" DEEPSEEK_API_KEY="test-deepseek-key" bash "$PROJECT_DIR/bin/claude-switch" profile use work-deepseek > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude-switcher/state.json" '.active_account' "work" "Using a profile should switch to the saved account" || return 1
+    assert_json_key "$temp_home/.claude-switcher/instances/work/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.deepseek.com/anthropic" "Using a profile should reapply the saved provider" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_profile_save_rejects_unexpected_provider() {
+    local temp_home
+    local command_output
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" --yes zai > /dev/null || return 1
+    command_output=$(HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" profile save mismatch --provider acme 2>&1) && return 1
+
+    assert_contains "$command_output" "Expected: acme" || return 1
+    assert_contains "$command_output" "Current:  zai" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_profile_save_requires_yes_to_overwrite() {
+    local temp_home
+    local command_output
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" --yes zai > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" profile save work-zai --provider zai --yes > /dev/null || return 1
+    command_output=$(printf 'n\n' | HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" profile save work-zai 2>&1) && return 1
+
+    assert_contains "$command_output" "Existing: yes" || return 1
+    assert_contains "$command_output" "Operation cancelled" || return 1
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" profile save work-zai --yes > /dev/null || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_profile_save_and_use_reapplies_project_scope() {
+    local temp_home
+    local project_dir
+    temp_home=$(create_test_home)
+    project_dir=$(create_test_project "$temp_home")
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    (
+        cd "$project_dir" &&
+        HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" project --yes zai > /dev/null &&
+        HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" profile save project-zai > /dev/null
+    ) || return 1
+
+    rm -f "$project_dir/.claude/settings.local.json"
+
+    HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" profile use project-zai > /dev/null || return 1
+
+    assert_file_exists "$project_dir/.claude/settings.local.json" "Using a project profile should recreate the local override" || return 1
+    assert_json_key "$project_dir/.claude/settings.local.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "Using a project profile should target the saved project root" || return 1
+
+    rm -rf "$temp_home"
 }
 
 # Test: Switching to zai fails without API key
@@ -259,6 +467,494 @@ test_clear_stale_models() {
     fi
 
     unset ZAI_API_KEY
+}
+
+create_test_home() {
+    local temp_home
+    temp_home=$(mktemp -d)
+    mkdir -p "$temp_home/.claude/backups"
+    cat > "$temp_home/.claude/settings.json" << 'EOF'
+{
+  "env": {}
+}
+EOF
+    echo "$temp_home"
+}
+
+create_test_project() {
+    local temp_home="$1"
+    local project_dir="$temp_home/project"
+    mkdir -p "$project_dir"
+    echo "$project_dir"
+}
+
+create_mock_claude() {
+    local temp_home="$1"
+    mkdir -p "$temp_home/bin"
+    cat > "$temp_home/bin/claude" << 'EOF'
+#!/bin/bash
+echo "${CLAUDE_CONFIG_DIR:-}" > "${MOCK_CLAUDE_LOG}"
+if [ -n "${MOCK_CLAUDE_ARGS_LOG:-}" ]; then
+  printf '%s\n' "$@" > "${MOCK_CLAUDE_ARGS_LOG}"
+fi
+if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+mkdir -p "${CLAUDE_CONFIG_DIR}"
+cat > "${CLAUDE_CONFIG_DIR}/.claude.json" << 'JSON'
+{
+  "oauthAccount": {
+    "emailAddress": "mock@example.com"
+  }
+}
+JSON
+fi
+EOF
+    chmod +x "$temp_home/bin/claude"
+}
+
+test_default_account_uses_legacy_claude_dir() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" status > /dev/null || return 1
+
+    assert_file_exists "$temp_home/.claude-switcher/accounts.json" || return 1
+    assert_file_exists "$temp_home/.claude-switcher/providers.json" || return 1
+    assert_json_key "$temp_home/.claude-switcher/accounts.json" '.accounts.default.path' "$temp_home/.claude" "Default account should point to legacy ~/.claude" || return 1
+    assert_json_key "$temp_home/.claude-switcher/accounts.json" '.accounts.default.legacy' "true" "Default account should be marked legacy" || return 1
+    assert_json_key "$temp_home/.claude-switcher/state.json" '.active_account' "default" "Default account should be active" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_account_create_and_use_isolated_instance() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+
+    assert_file_exists "$temp_home/.claude-switcher/instances/work/settings.json" || return 1
+    assert_json_key "$temp_home/.claude-switcher/accounts.json" '.accounts.work.path' "$temp_home/.claude-switcher/instances/work" "New account should use an isolated path" || return 1
+    assert_json_key "$temp_home/.claude-switcher/state.json" '.active_account' "work" "Active account should switch to work" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_account_rename_updates_registry_and_path() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account rename work office > /dev/null || return 1
+
+    assert_file_exists "$temp_home/.claude-switcher/instances/office/settings.json" || return 1
+    assert_json_key "$temp_home/.claude-switcher/accounts.json" '.accounts.office.path' "$temp_home/.claude-switcher/instances/office" "Renamed account should update registry path" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_account_delete_removes_isolated_instance() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account delete work > /dev/null || return 1
+
+    if [ -e "$temp_home/.claude-switcher/instances/work" ]; then
+        echo -e "${RED}✗${NC} Deleted account directory should be removed"
+        return 1
+    fi
+
+    assert_json_key "$temp_home/.claude-switcher/state.json" '.active_account' "default" "Deleting the only isolated account should keep default active" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_provider_switch_on_default_account_preserves_legacy_behavior() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    printf 'y\n' | HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" zai > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "Default account should still update ~/.claude/settings.json" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_provider_switch_on_isolated_account_writes_to_instance_settings() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    cat > "$temp_home/.claude/settings.json" << 'EOF'
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://legacy.example"
+  }
+}
+EOF
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    printf 'y\n' | HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" zai > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_BASE_URL' "https://legacy.example" "Legacy ~/.claude/settings.json should remain unchanged" || return 1
+    assert_json_key "$temp_home/.claude-switcher/instances/work/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "Isolated account should write into its own settings.json" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_provider_switch_accepts_yes_flag() {
+    local temp_home
+    temp_home=$(create_test_home)
+    local command_output
+
+    command_output=$(HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" --yes zai 2>&1) || return 1
+
+    assert_contains "$command_output" "Confirmation: auto-approved via --yes" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "The --yes flag should skip the provider confirmation prompt" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_project_switch_writes_local_override() {
+    local temp_home
+    local project_dir
+    temp_home=$(create_test_home)
+    project_dir=$(create_test_project "$temp_home")
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    (
+        cd "$project_dir" &&
+        HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" project --yes zai > /dev/null
+    ) || return 1
+
+    assert_json_key "$temp_home/.claude-switcher/instances/work/settings.json" '.env.ANTHROPIC_BASE_URL // "oauth"' "oauth" "Project overrides should not mutate the account global settings" || return 1
+    assert_json_key "$project_dir/.claude/settings.local.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "Project scope should write to .claude/settings.local.json" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_project_claude_writes_null_overrides() {
+    local temp_home
+    local project_dir
+    temp_home=$(create_test_home)
+    project_dir=$(create_test_project "$temp_home")
+
+    HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" --yes zai > /dev/null || return 1
+    (
+        cd "$project_dir" &&
+        HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" project --yes claude > /dev/null
+    ) || return 1
+
+    if ! jq -e '.env.ANTHROPIC_AUTH_TOKEN == null' "$project_dir/.claude/settings.local.json" > /dev/null 2>&1; then
+        echo -e "${RED}✗${NC} Project claude should null out the inherited auth token"
+        return 1
+    fi
+
+    if ! jq -e '.env.ANTHROPIC_BASE_URL == null' "$project_dir/.claude/settings.local.json" > /dev/null 2>&1; then
+        echo -e "${RED}✗${NC} Project claude should null out the inherited base URL"
+        return 1
+    fi
+
+    rm -rf "$temp_home"
+}
+
+test_status_and_where_use_project_override() {
+    local temp_home
+    local project_dir
+    local status_output
+    local where_output
+    temp_home=$(create_test_home)
+    project_dir=$(create_test_project "$temp_home")
+
+    mkdir -p "$project_dir/.claude"
+    cat > "$project_dir/.claude/settings.local.json" << 'EOF'
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic"
+  }
+}
+EOF
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+
+    status_output=$(
+        cd "$project_dir" &&
+        HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" status
+    ) || return 1
+    where_output=$(
+        cd "$project_dir" &&
+        HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" where
+    ) || return 1
+
+    assert_contains "$status_output" "Scope: project" || return 1
+    assert_contains "$status_output" "Settings: $project_dir/.claude/settings.local.json" || return 1
+    assert_contains "$status_output" "Provider: " || return 1
+    assert_contains "$status_output" "Z.AI (GLM)" || return 1
+    assert_contains "$where_output" "Project Override: yes" || return 1
+    assert_contains "$where_output" "Effective Scope: project" || return 1
+    assert_contains "$where_output" "Effective Settings: $project_dir/.claude/settings.local.json" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_global_switch_ignores_project_override_target() {
+    local temp_home
+    local project_dir
+    temp_home=$(create_test_home)
+    project_dir=$(create_test_project "$temp_home")
+
+    mkdir -p "$project_dir/.claude"
+    cat > "$project_dir/.claude/settings.local.json" << 'EOF'
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic"
+  }
+}
+EOF
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    (
+        cd "$project_dir" &&
+        HOME="$temp_home" DEEPSEEK_API_KEY="test-deepseek-key" bash "$PROJECT_DIR/bin/claude-switch" global --yes deepseek > /dev/null
+    ) || return 1
+
+    assert_json_key "$temp_home/.claude-switcher/instances/work/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.deepseek.com/anthropic" "Global scope should update the account settings file" || return 1
+    assert_json_key "$project_dir/.claude/settings.local.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "Global scope should not overwrite the project-local override" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_reset_project_removes_local_override() {
+    local temp_home
+    local project_dir
+    local command_output
+    temp_home=$(create_test_home)
+    project_dir=$(create_test_project "$temp_home")
+
+    mkdir -p "$project_dir/.claude"
+    cat > "$project_dir/.claude/settings.local.json" << 'EOF'
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic"
+  }
+}
+EOF
+
+    command_output=$(
+        cd "$project_dir" &&
+        HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" reset project
+    ) || return 1
+
+    if [ -f "$project_dir/.claude/settings.local.json" ]; then
+        echo -e "${RED}✗${NC} Reset project should remove the local override file"
+        return 1
+    fi
+
+    assert_contains "$command_output" "Removed project override" || return 1
+
+    local backup_count
+    backup_count=$(find "$project_dir/.claude/backups" -maxdepth 1 -type f -name 'settings.local.json.backup-*' | wc -l)
+    assert_equals "1" "$backup_count" "Reset project should keep a backup of the removed override" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_doctor_reports_healthy_environment() {
+    local temp_home
+    local command_output
+    local jq_dir
+    temp_home=$(create_test_home)
+    create_mock_claude "$temp_home"
+    jq_dir=$(dirname "$(command -v jq)")
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    cat > "$temp_home/.claude-switcher/instances/work/.claude.json" << 'EOF'
+{
+  "oauthAccount": {
+    "emailAddress": "work@example.com"
+  }
+}
+EOF
+
+    command_output=$(PATH="$temp_home/bin:$jq_dir:/usr/bin:/bin" HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" doctor 2>&1) || return 1
+
+    assert_contains "$command_output" "Doctor:" || return 1
+    assert_contains "$command_output" "Account: work" || return 1
+    assert_contains "$command_output" "jq" || return 1
+    assert_contains "$command_output" "claude" || return 1
+    assert_contains "$command_output" "auth" || return 1
+    assert_contains "$command_output" "Summary:" || return 1
+    assert_contains "$command_output" "healthy" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_doctor_json_reports_broken_environment() {
+    local temp_home
+    local project_dir
+    local json_output
+    local jq_dir
+    temp_home=$(create_test_home)
+    project_dir=$(create_test_project "$temp_home")
+    jq_dir=$(dirname "$(command -v jq)")
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    cat > "$temp_home/.claude-switcher/instances/work/settings.json" << 'EOF'
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic"
+  }
+}
+EOF
+    mkdir -p "$project_dir/.claude"
+    printf '{\n' > "$project_dir/.claude/settings.local.json"
+
+    json_output=$(
+        cd "$project_dir" &&
+        PATH="$jq_dir:/usr/bin:/bin" HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" doctor --json
+    ) || true
+
+    assert_equals "broken" "$(printf '%s\n' "$json_output" | jq -r '.status')" "Doctor JSON should report a broken environment when checks fail" || return 1
+    assert_equals "fail" "$(printf '%s\n' "$json_output" | jq -r '.checks[] | select(.id == "claude") | .status')" "Doctor JSON should report missing Claude CLI" || return 1
+    assert_equals "fail" "$(printf '%s\n' "$json_output" | jq -r '.checks[] | select(.id == "project_settings") | .status')" "Doctor JSON should report invalid project settings" || return 1
+    assert_equals "warn" "$(printf '%s\n' "$json_output" | jq -r '.checks[] | select(.id == "auth") | .status')" "Doctor JSON should warn when no auth state exists for an API provider" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_account_login_uses_claude_config_dir() {
+    local temp_home
+    temp_home=$(create_test_home)
+    create_mock_claude "$temp_home"
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    MOCK_CLAUDE_LOG="$temp_home/mock-claude.log" PATH="$temp_home/bin:$PATH" HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account login work > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude-switcher/instances/work/.claude.json" '.oauthAccount.emailAddress' "mock@example.com" "Login should create auth state in the isolated account root" || return 1
+
+    local logged_dir
+    logged_dir=$(cat "$temp_home/mock-claude.log")
+    assert_equals "$temp_home/.claude-switcher/instances/work" "$logged_dir" "Login should launch Claude with CLAUDE_CONFIG_DIR set to the account path" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_account_test_detects_authenticated_isolated_account() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    cat > "$temp_home/.claude-switcher/instances/work/.claude.json" << 'EOF'
+{
+  "oauthAccount": {
+    "emailAddress": "work@example.com"
+  }
+}
+EOF
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account test work > /dev/null || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_account_test_fails_without_auth_state() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+
+    if HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account test work > /dev/null 2>&1; then
+        echo -e "${RED}✗${NC} Account test should fail when there is no auth state"
+        return 1
+    fi
+
+    rm -rf "$temp_home"
+}
+
+test_account_import_current_copies_legacy_state() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    cat > "$temp_home/.claude.json" << 'EOF'
+{
+  "oauthAccount": {
+    "emailAddress": "legacy@example.com"
+  }
+}
+EOF
+    cat > "$temp_home/.claude/policy-limits.json" << 'EOF'
+{
+  "max_requests": 10
+}
+EOF
+    mkdir -p "$temp_home/.claude/cache" "$temp_home/.claude/plugins" "$temp_home/.claude/backups"
+    printf 'cached\n' > "$temp_home/.claude/cache/changelog.md"
+    printf 'plugin\n' > "$temp_home/.claude/plugins/blocklist.json"
+    printf 'backup\n' > "$temp_home/.claude/backups/example.backup"
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account import-current imported > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude-switcher/instances/imported/.claude.json" '.oauthAccount.emailAddress' "legacy@example.com" "Import should copy the current Claude auth file" || return 1
+    assert_json_key "$temp_home/.claude-switcher/instances/imported/policy-limits.json" '.max_requests' "10" "Import should copy policy limits" || return 1
+    assert_file_exists "$temp_home/.claude-switcher/instances/imported/cache/changelog.md" || return 1
+    assert_file_exists "$temp_home/.claude-switcher/instances/imported/plugins/blocklist.json" || return 1
+    assert_file_exists "$temp_home/.claude-switcher/instances/imported/backups/example.backup" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_exec_uses_active_isolated_account_runtime() {
+    local temp_home
+    local temp_project_root
+    temp_home=$(create_test_home)
+    temp_project_root=$(create_test_project "$temp_home")
+    create_mock_claude "$temp_home"
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    CLAUDE_SWITCH_PROJECT_ROOT="$temp_project_root" MOCK_CLAUDE_LOG="$temp_home/mock-claude.log" MOCK_CLAUDE_ARGS_LOG="$temp_home/mock-claude-args.log" PATH="$temp_home/bin:$PATH" HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" exec -- -p "hello world" > /dev/null || return 1
+
+    assert_equals "$temp_home/.claude-switcher/instances/work" "$(cat "$temp_home/mock-claude.log")" "Exec should launch Claude with the isolated account runtime" || return 1
+
+    local first_arg
+    local second_arg
+    first_arg=$(sed -n '1p' "$temp_home/mock-claude-args.log")
+    second_arg=$(sed -n '2p' "$temp_home/mock-claude-args.log")
+    assert_equals "-p" "$first_arg" "Exec should forward Claude CLI flags" || return 1
+    assert_equals "hello world" "$second_arg" "Exec should forward Claude CLI values" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_exec_can_switch_provider_before_launch() {
+    local temp_home
+    local temp_project_root
+    temp_home=$(create_test_home)
+    temp_project_root=$(create_test_project "$temp_home")
+    create_mock_claude "$temp_home"
+    local command_output
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account create work > /dev/null || return 1
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" account use work > /dev/null || return 1
+    command_output=$(CLAUDE_SWITCH_PROJECT_ROOT="$temp_project_root" MOCK_CLAUDE_LOG="$temp_home/mock-claude.log" PATH="$temp_home/bin:$PATH" HOME="$temp_home" ZAI_API_KEY="test-zai-key" bash "$PROJECT_DIR/bin/claude-switch" exec --yes zai -- 2>&1) || return 1
+
+    assert_json_key "$temp_home/.claude-switcher/instances/work/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.z.ai/api/anthropic" "Exec should switch the provider before launching Claude" || return 1
+    assert_equals "$temp_home/.claude-switcher/instances/work" "$(cat "$temp_home/mock-claude.log")" "Exec should still launch with the isolated runtime" || return 1
+    assert_contains "$command_output" "Confirmation: auto-approved via --yes" || return 1
+    assert_contains "$command_output" "Launch Summary:" || return 1
+    assert_contains "$command_output" "Account: work" || return 1
+    assert_contains "$command_output" "Mode: isolated" || return 1
+    assert_contains "$command_output" "Provider: Z.AI (GLM)" || return 1
+    assert_contains "$command_output" "Settings: $temp_home/.claude-switcher/instances/work/settings.json" || return 1
+    assert_contains "$command_output" "CLAUDE_CONFIG_DIR: $temp_home/.claude-switcher/instances/work" || return 1
+
+    rm -rf "$temp_home"
 }
 
 # Test: Invalid provider fails gracefully
