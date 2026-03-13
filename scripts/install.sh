@@ -342,6 +342,11 @@ fi
 if [ -f "$ALIAS_DST" ]; then
   echo -e "${GREEN}✓${NC} Aliases file exists"
 
+  if [ -n "$ALIASES_SRC" ] && [ -f "$ALIASES_SRC" ] && ! cmp -s "$ALIASES_SRC" "$ALIAS_DST"; then
+    echo -e "${YELLOW}⚠️  Aliases file is outdated and will be refreshed${NC}"
+    NEEDS_ALIASES=true
+  fi
+
   # Check if aliases are sourced in shell config
   if grep -q "source.*$ALIAS_DST" "$SHELL_CONFIG" 2>/dev/null; then
     echo -e "${GREEN}✓${NC} Aliases are loaded in $SHELL_CONFIG"
