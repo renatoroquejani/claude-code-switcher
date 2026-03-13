@@ -1,57 +1,40 @@
 #!/bin/bash
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Claude Code Switcher - Shell Aliases
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#
-# Add to your ~/.bashrc or ~/.zshrc:
-# source ~/.claude/aliases.sh
-#
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# CLOUD PROVIDERS
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Source this file in your ~/.bashrc or ~/.zshrc
 
-# Anthropic Claude (OAuth/Pro)
-claude-switch() {
+_ccs_claude_switch() {
   command claude-switch exec claude -- "$@"
 }
 
-# Anthropic Claude (API key)
-anthropic-api-switch() {
+_ccs_anthropic_api_switch() {
   command claude-switch exec anthropic-api -- "$@"
 }
 
-# Z.AI
-zai-switch() {
+_ccs_zai_switch() {
   command claude-switch exec zai -- "$@"
 }
 
-# DeepSeek
-deepseek-switch() {
+_ccs_deepseek_switch() {
   command claude-switch exec deepseek -- "$@"
 }
 
-# Kimi
-kimi-switch() {
+_ccs_kimi_switch() {
   command claude-switch exec kimi -- "$@"
 }
 
-# Qwen
-qwen-switch() {
+_ccs_qwen_switch() {
   command claude-switch exec qwen -- "$@"
 }
 
-# Groq
-groq-switch() {
+_ccs_groq_switch() {
   command claude-switch exec groq -- "$@"
 }
 
-# Together AI
-together-switch() {
+_ccs_together_switch() {
   command claude-switch exec together -- "$@"
 }
 
-# OpenRouter (with optional model)
-openrouter-switch() {
+_ccs_openrouter_switch() {
   if [ -z "$1" ]; then
     command claude-switch exec openrouter -- "${@:2}"
   else
@@ -59,12 +42,7 @@ openrouter-switch() {
   fi
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# LOCAL PROVIDERS
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-# Ollama (with optional model)
-ollama-switch() {
+_ccs_ollama_switch() {
   if [ -z "$1" ]; then
     command claude-switch exec ollama -- "${@:2}"
   else
@@ -72,14 +50,26 @@ ollama-switch() {
   fi
 }
 
-# LM Studio
-lmstudio-switch() {
+_ccs_lmstudio_switch() {
   command claude-switch exec lmstudio -- "$@"
 }
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# STATUS & INFO
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+_ccs_claude_active() {
+  command claude-switch exec -- "$@"
+}
+
+alias claude-switch='_ccs_claude_switch'
+alias anthropic-api-switch='_ccs_anthropic_api_switch'
+alias zai-switch='_ccs_zai_switch'
+alias deepseek-switch='_ccs_deepseek_switch'
+alias kimi-switch='_ccs_kimi_switch'
+alias qwen-switch='_ccs_qwen_switch'
+alias groq-switch='_ccs_groq_switch'
+alias together-switch='_ccs_together_switch'
+alias openrouter-switch='_ccs_openrouter_switch'
+alias ollama-switch='_ccs_ollama_switch'
+alias lmstudio-switch='_ccs_lmstudio_switch'
+alias claude-active='_ccs_claude_active'
 
 alias cs-status='claude-switch status'
 alias cs-list='claude-switch list'
@@ -93,14 +83,6 @@ alias cs-exec='claude-switch exec'
 alias cs-accounts='claude-switch account list'
 alias cs-profiles='claude-switch profile list'
 alias cs-providers='claude-switch provider list'
-
-claude-active() {
-  command claude-switch exec -- "$@"
-}
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# CONVENIENCE ALIASES (Ollama models)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 alias ollama7='ollama-switch qwen3-coder:7b'
 alias ollama14='ollama-switch qwen3-coder:14b'
