@@ -18,6 +18,20 @@ CYAN=$'\033[0;36m'
 BOLD=$'\033[1m'
 NC=$'\033[0m'
 
+confirm_prompt() {
+  local prompt="$1"
+  local reply=""
+
+  if [ -r /dev/tty ]; then
+    read -p "$prompt" -n 1 -r reply < /dev/tty
+    printf '\n'
+  else
+    return 1
+  fi
+
+  [[ "$reply" =~ ^[SsYy]$ ]]
+}
+
 echo ""
 echo -e "${BOLD}${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${BOLD}  Claude Code Switcher - Uninstaller${NC}"
@@ -30,9 +44,7 @@ echo "  - $BIN_DST"
 echo "  - $ALIAS_FILE"
 echo -e "\n${RED}Note: Your API keys ($CONFIG_DIR/api-keys.env) will be kept.${NC}"
 echo ""
-read -p "Continue? [y/N] " -n 1 -r
-printf '\n'
-if [[ ! $REPLY =~ ^[SsYy]$ ]]; then
+if ! confirm_prompt "Continue? [y/N] "; then
   echo "Uninstall cancelled"
   exit 0
 fi
@@ -70,9 +82,7 @@ fi
 
 # Ask about config directory
 echo ""
-read -p "Remove entire ~/.claude directory? ${RED}(This will delete backups and API keys!)${NC} [y/N] " -n 1 -r
-printf '\n'
-if [[ $REPLY =~ ^[SsYy]$ ]]; then
+if confirm_prompt "Remove entire ~/.claude directory? ${RED}(This will delete backups and API keys!)${NC} [y/N] "; then
   echo -e "${CYAN}Removing $CONFIG_DIR...${NC}"
   rm -rf "$CONFIG_DIR"
   echo -e "${GREEN}✓${NC} Removed"
