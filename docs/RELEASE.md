@@ -2,6 +2,27 @@
 
 Version-specific release information for Claude Code Switcher.
 
+## [2.3.1] - 2026-03-13
+
+### What's New
+
+This patch release fixes installer, alias, API key template, and uninstall regressions discovered after the `v2.3.0` rollout.
+
+### Fixes
+
+- `claude-switch` is no longer aliased to `exec`, so administrative commands like `account`, `profile`, `doctor`, `project`, and `global` work correctly in shells that source `~/.claude/aliases.sh`
+- `install.sh` now refreshes stale `~/.claude/aliases.sh` content during reinstall, instead of treating any existing file as valid
+- generated `~/.claude/api-keys.env` templates now use `export ...`, so sourced keys are available to the `claude-switch` subprocess
+- uninstall confirmations now read from `/dev/tty`, which fixes `curl ... | bash` execution
+- uninstall no longer offers to remove `~/.claude`; it preserves Claude Code state and only cleans switcher-managed settings keys plus optional `~/.claude-switcher`
+
+### Upgrade Instructions
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main/scripts/install.sh | bash
+source ~/.bashrc
+```
+
 ## [2.3.0] - 2026-03-13
 
 ### What's New
@@ -254,6 +275,7 @@ Major release with multi-provider support and enhanced UX.
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.3.1 | 2026-03-13 | Installer, alias, API key template, and uninstall hotfixes |
 | 2.3.0 | 2026-03-13 | Multi-account runtimes, exec launcher, project scope, doctor, provider catalog, profiles, custom providers |
 | 2.2.0 | 2025-02-10 | Wizard, auto-update, Anthropic API, Groq, Together AI, AUR, Homebrew, test suite |
 | 2.1.0 | 2025-02-09 | Model mapping display, enhanced help, Ollama auto-detection |

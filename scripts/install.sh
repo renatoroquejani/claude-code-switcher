@@ -4,7 +4,7 @@
 
 set -e
 
-VERSION="2.3.0"
+VERSION="2.3.1"
 SCRIPT_NAME="claude-switch"
 REPO_URL="https://github.com/renatoroquejani/claude-code-switcher"
 RAW_BASE_URL="https://raw.githubusercontent.com/renatoroquejani/claude-code-switcher/main"

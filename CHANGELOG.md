@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Usage telemetry (opt-in)
 - Support for additional providers (Mistral, Cohere)
 
+## [2.3.1] - 2026-03-13
+
+### Fixed
+- Shell aliases no longer override the `claude-switch` CLI itself, preventing subcommands like `account`, `profile`, `doctor`, `project`, and `global` from being routed into `exec`
+- Installer now refreshes outdated `~/.claude/aliases.sh` files during reinstall instead of leaving stale aliases in place
+- `install.sh` and `config-wizard.sh` now generate exported API key examples so `source ~/.claude/api-keys.env` works for subprocesses
+- Uninstall confirmations now read from `/dev/tty`, which fixes `curl ... | bash` execution and avoids consuming the streamed script
+- Uninstall no longer offers to remove `~/.claude`; it preserves Claude Code state and only cleans switcher-managed settings keys plus optional `~/.claude-switcher`
+- Alias helper definitions are now Bash-compatible and no longer rely on invalid function names
+
 ## [2.3.0] - 2026-03-13
 
 ### Added
@@ -119,6 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Key Features |
 |---------|------|--------------|
+| 2.3.1 | 2026-03-13 | Installer, alias, API key template, and uninstall hotfixes |
 | 2.3.0 | 2026-03-13 | Multi-account runtimes, exec launcher, project scope, doctor, provider catalog, profiles, custom providers |
 | 2.2.0 | 2025-02-10 | Wizard, auto-update, Anthropic API, Groq, Together AI, AUR, Homebrew, test suite |
 | 2.1.0 | 2025-02-09 | Model mapping display, enhanced help, Ollama auto-detection |

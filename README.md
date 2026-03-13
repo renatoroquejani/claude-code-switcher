@@ -3,7 +3,7 @@
 > Fast CLI tool to switch Claude Code between LLM providers - supporting cloud and local models
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.3.1-blue.svg)](CHANGELOG.md)
 [![Shell](https://img.shields.io/badge/shell-bash%20%7C%20zsh-green.svg)](https://github.com/renatoroquejani/claude-code-switcher)
 
 ## Features
@@ -359,7 +359,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Roadmap
 
-Completed in v2.3.0:
+Completed in v2.3.1:
 - [x] Multi-account Claude runtimes
 - [x] Account login/import/test flows
 - [x] `exec` launcher with isolated runtime selection
