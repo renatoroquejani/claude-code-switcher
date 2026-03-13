@@ -1057,6 +1057,22 @@ test_exec_clears_stale_provider_env_before_launch() {
     rm -rf "$temp_home"
 }
 
+test_env_clear_emits_unset_commands_for_stale_provider_vars() {
+    local temp_home
+    local command_output
+    temp_home=$(create_test_home)
+
+    command_output=$(HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" env-clear) || return 1
+
+    assert_contains "$command_output" "unset ZAI_API_KEY" || return 1
+    assert_contains "$command_output" "unset GLM_API_KEY" || return 1
+    assert_contains "$command_output" "unset ANTHROPIC_AUTH_TOKEN" || return 1
+    assert_contains "$command_output" "unset ANTHROPIC_BASE_URL" || return 1
+    assert_contains "$command_output" "unset OPENROUTER_DEFAULT_MODEL" || return 1
+
+    rm -rf "$temp_home"
+}
+
 # Test: Invalid provider fails gracefully
 test_invalid_provider() {
     setup_test_settings
