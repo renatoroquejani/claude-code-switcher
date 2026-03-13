@@ -393,9 +393,6 @@ if [ "$NEEDS_ALIASES" = true ]; then
 # Source this file in your ~/.bashrc or ~/.zshrc
 
 # Helper functions use valid shell identifiers; public commands stay as aliases.
-_ccs_claude_switch() {
-  command claude-switch exec claude -- "$@"
-}
 _ccs_anthropic_api_switch() {
   command claude-switch exec anthropic-api -- "$@"
 }
@@ -439,7 +436,6 @@ _ccs_claude_active() {
   command claude-switch exec -- "$@"
 }
 
-alias claude-switch='_ccs_claude_switch'
 alias anthropic-api-switch='_ccs_anthropic_api_switch'
 alias zai-switch='_ccs_zai_switch'
 alias deepseek-switch='_ccs_deepseek_switch'
@@ -451,6 +447,7 @@ alias openrouter-switch='_ccs_openrouter_switch'
 alias ollama-switch='_ccs_ollama_switch'
 alias lmstudio-switch='_ccs_lmstudio_switch'
 alias claude-active='_ccs_claude_active'
+alias ccs-run='_ccs_claude_active'
 
 alias cs-status='claude-switch status'
 alias cs-list='claude-switch list'
