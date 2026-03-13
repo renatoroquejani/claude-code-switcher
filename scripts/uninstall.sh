@@ -31,7 +31,7 @@ echo "  - $ALIAS_FILE"
 echo -e "\n${RED}Note: Your API keys ($CONFIG_DIR/api-keys.env) will be kept.${NC}"
 echo ""
 read -p "Continue? [y/N] " -n 1 -r
-echo
+printf '\n'
 if [[ ! $REPLY =~ ^[SsYy]$ ]]; then
   echo "Uninstall cancelled"
   exit 0
@@ -71,7 +71,7 @@ fi
 # Ask about config directory
 echo ""
 read -p "Remove entire ~/.claude directory? ${RED}(This will delete backups and API keys!)${NC} [y/N] " -n 1 -r
-echo
+printf '\n'
 if [[ $REPLY =~ ^[SsYy]$ ]]; then
   echo -e "${CYAN}Removing $CONFIG_DIR...${NC}"
   rm -rf "$CONFIG_DIR"
