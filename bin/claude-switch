@@ -22,6 +22,8 @@ PROJECT_ROOT=""
 PROJECT_SETTINGS=""
 PROJECT_BACKUP_DIR=""
 CURRENT_SCOPE="global"
+API_KEYS_FILE_SYNTAX_CHECKED="false"
+API_KEYS_FILE_SYNTAX_VALID="unknown"
 
 # Colors
 GREEN=$'\033[0;32m'
@@ -258,6 +260,30 @@ resolve_provider_auth_token() {
   return 1
 }
 
+validate_api_keys_file_syntax() {
+  if [ ! -f "$API_KEYS_FILE" ]; then
+    return 0
+  fi
+
+  if [ "$API_KEYS_FILE_SYNTAX_CHECKED" = "true" ]; then
+    [ "$API_KEYS_FILE_SYNTAX_VALID" = "true" ]
+    return $?
+  fi
+
+  API_KEYS_FILE_SYNTAX_CHECKED="true"
+
+  if bash -n "$API_KEYS_FILE" > /dev/null 2>&1; then
+    API_KEYS_FILE_SYNTAX_VALID="true"
+    return 0
+  fi
+
+  API_KEYS_FILE_SYNTAX_VALID="false"
+  echo -e "${RED}❌ Invalid shell syntax in $API_KEYS_FILE${NC}" >&2
+  echo "Fix the file and try again." >&2
+  echo "Tip: verify quotes are closed and each key is on a single line." >&2
+  return 1
+}
+
 resolve_configured_env_value() {
   local var_name="$1"
   local env_value="${!var_name:-}"
@@ -267,7 +293,14 @@ resolve_configured_env_value() {
     return 0
   fi
 
-  read_env_file_value "$var_name"
+  if env_value=$(read_env_file_value "$var_name"); then
+    if [ -n "$env_value" ]; then
+      printf '%s\n' "$env_value"
+      return 0
+    fi
+  fi
+
+  read_env_file_value_via_subshell "$var_name"
 }
 
 read_env_file_value() {
@@ -314,6 +347,23 @@ read_env_file_value() {
   done < "$API_KEYS_FILE"
 
   return 1
+}
+
+read_env_file_value_via_subshell() {
+  local var_name="$1"
+
+  [ -f "$API_KEYS_FILE" ] || return 1
+
+  (
+    # Fall back to Bash's parser for env files that use valid shell syntax
+    # outside the simple KEY=VALUE and export KEY=VALUE forms handled above.
+    # shellcheck disable=SC1090
+    source "$API_KEYS_FILE" > /dev/null 2>&1 || exit 1
+
+    local sourced_value="${!var_name:-}"
+    [ -n "$sourced_value" ] || exit 1
+    printf '%s\n' "$sourced_value"
+  )
 }
 
 list_provider_auth_envs() {
@@ -2739,6 +2789,8 @@ apply_catalog_provider() {
 
   base_url=$(get_provider_base_url "$provider")
   mapping_strategy=$(get_provider_mapping_strategy "$provider")
+
+  validate_api_keys_file_syntax || return 1
 
   if ! token=$(resolve_provider_auth_token "$provider"); then
     local first_env

@@ -121,6 +121,44 @@ EOF
     rm -rf "$temp_home"
 }
 
+test_switch_reads_provider_key_from_declare_x_api_keys_file() {
+    local temp_home
+    temp_home=$(create_test_home)
+
+    cat > "$temp_home/.claude/api-keys.env" << 'EOF'
+# Valid shell syntax copied from export -p output
+declare -x ANTHROPIC_API_KEY="file-anthropic-key"
+EOF
+
+    HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" --yes anthropic-api > /dev/null || return 1
+
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_AUTH_TOKEN' "file-anthropic-key" "Switch should read declare -x exported keys from api-keys.env" || return 1
+    assert_json_key "$temp_home/.claude/settings.json" '.env.ANTHROPIC_BASE_URL' "https://api.anthropic.com" "Anthropic API provider should still apply its base URL" || return 1
+
+    rm -rf "$temp_home"
+}
+
+test_switch_fails_with_clear_error_for_invalid_api_keys_syntax() {
+    local temp_home
+    local command_output
+    temp_home=$(create_test_home)
+
+    cat > "$temp_home/.claude/api-keys.env" << 'EOF'
+export ANTHROPIC_API_KEY="broken-key
+EOF
+
+    if command_output=$(HOME="$temp_home" bash "$PROJECT_DIR/bin/claude-switch" --yes anthropic-api 2>&1); then
+        echo -e "${RED}✗${NC} Switch should fail when api-keys.env has invalid shell syntax"
+        rm -rf "$temp_home"
+        return 1
+    fi
+
+    assert_contains "$command_output" "Invalid shell syntax in $temp_home/.claude/api-keys.env" || return 1
+    assert_contains "$command_output" "Fix the file and try again." || return 1
+
+    rm -rf "$temp_home"
+}
+
 test_provider_catalog_drives_model_presets() {
     local temp_home
     local temp_config
