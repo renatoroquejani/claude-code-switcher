@@ -88,6 +88,18 @@
       ],
       "mapping_strategy": "single-model",
       "default_model": "anthropic/claude-opus-4.6"
+    },
+    "minimax": {
+      "base_url": "https://api.minimax.io/anthropic",
+      "auth_env": [
+        "MINIMAX_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "MiniMax-M2.7",
+        "sonnet": "MiniMax-M2.7",
+        "haiku": "MiniMax-M2.7"
+      }
     }
   }
 }

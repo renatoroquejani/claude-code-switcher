@@ -1170,7 +1170,7 @@ get_effective_provider_spec() {
     openrouter|ollama)
       model=$(jq -r '.env.ANTHROPIC_MODEL // .env.ANTHROPIC_DEFAULT_HAIKU_MODEL // .env.ANTHROPIC_DEFAULT_OPUS_MODEL // empty' "$effective_settings" 2>/dev/null)
       ;;
-    claude|lmstudio|anthropic-api|zai|deepseek|kimi|qwen|groq|together)
+    claude|lmstudio|anthropic-api|zai|deepseek|kimi|qwen|groq|together|minimax)
       model=""
       ;;
     *)
@@ -1769,6 +1769,10 @@ get_together_models() {
   echo "opus:$(get_provider_model_value "together" "opus") sonnet:$(get_provider_model_value "together" "sonnet") haiku:$(get_provider_model_value "together" "haiku")"
 }
 
+get_minimax_models() {
+  echo "opus:$(get_provider_model_value "minimax" "opus") sonnet:$(get_provider_model_value "minimax" "sonnet") haiku:$(get_provider_model_value "minimax" "haiku")"
+}
+
 get_openrouter_models() {
   local model="${OPENROUTER_DEFAULT_MODEL:-$(get_provider_default_model "openrouter")}"
   echo "opus:$model sonnet:$model haiku:$model"
@@ -1965,6 +1969,7 @@ show_help() {
   echo "  ${GREEN}groq${NC}              Groq (Llama 3.3, Mixtral)"
   echo "  ${GREEN}together${NC}          Together AI (Llama, Mixtral, Mistral)"
   echo "  ${GREEN}openrouter${NC}        OpenRouter (requires :model)"
+  echo "  ${GREEN}minimax${NC}           MiniMax M2"
   echo ""
   echo -e "${YELLOW}LOCAL PROVIDERS:${NC}"
   echo "  ${CYAN}ollama${NC}             Ollama (local GGUF models)"
@@ -2092,6 +2097,7 @@ list_providers() {
   echo "  groq          - Groq (Llama 3.3/Mixtral)"
   echo "  together      - Together AI (70B/8x7B/7B)"
   echo "  openrouter    - OpenRouter (100+ models)"
+  echo "  minimax       - MiniMax M2"
   echo ""
   echo -e "${YELLOW}LOCAL (free):${NC}"
   echo "  ollama        - Ollama (local GGUF models)"
@@ -2243,6 +2249,7 @@ get_current_config_from_file() {
     *"groq"*) echo "groq" ;;
     *"together"*) echo "together" ;;
     *"openrouter"*) echo "openrouter" ;;
+    *"minimax"*) echo "minimax" ;;
     *) echo "unknown" ;;
   esac
 }
@@ -2282,6 +2289,7 @@ get_friendly_name() {
     groq) echo "Groq" ;;
     together) echo "Together AI" ;;
     openrouter) echo "OpenRouter" ;;
+    minimax) echo "MiniMax" ;;
     ollama) echo "Ollama (Local)" ;;
     lmstudio) echo "LM Studio (Local)" ;;
     *) echo "Unknown" ;;
