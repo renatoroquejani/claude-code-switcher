@@ -80,6 +80,10 @@ alias cs-accounts='claude-switch account list'
 alias cs-profiles='claude-switch profile list'
 alias cs-providers='claude-switch provider list'
 
+# Short aliases for easy typing
+alias ccswitch='claude-switch'
+alias cswitch='claude-switch'
+
 alias ollama7='ollama-switch qwen3-coder:7b'
 alias ollama14='ollama-switch qwen3-coder:14b'
 alias ollama32='ollama-switch qwen3-coder:32b'
