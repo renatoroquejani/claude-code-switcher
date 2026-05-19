@@ -118,6 +118,18 @@ write_default_provider_catalog() {
         "haiku": "moonshot-v1-8k"
       }
     },
+    "kimi-coding": {
+      "base_url": "https://api.kimi.com/coding/",
+      "auth_env": [
+        "KIMI_CODING_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "kimi-k2.6",
+        "sonnet": "kimi-k2.6",
+        "haiku": "kimi-k2.6"
+      }
+    },
     "qwen": {
       "base_url": "https://api.siliconflow.cn/v1/anthropic",
       "auth_env": [
@@ -1170,7 +1182,7 @@ get_effective_provider_spec() {
     openrouter|ollama)
       model=$(jq -r '.env.ANTHROPIC_MODEL // .env.ANTHROPIC_DEFAULT_HAIKU_MODEL // .env.ANTHROPIC_DEFAULT_OPUS_MODEL // empty' "$effective_settings" 2>/dev/null)
       ;;
-    claude|lmstudio|anthropic-api|zai|deepseek|kimi|qwen|groq|together|minimax)
+    claude|lmstudio|anthropic-api|zai|deepseek|kimi|kimi-coding|qwen|groq|together|minimax)
       model=""
       ;;
     *)
@@ -1757,6 +1769,10 @@ get_kimi_models() {
   echo "opus:$(get_provider_model_value "kimi" "opus") sonnet:$(get_provider_model_value "kimi" "sonnet") haiku:$(get_provider_model_value "kimi" "haiku")"
 }
 
+get_kimi_coding_models() {
+  echo "opus:$(get_provider_model_value "kimi-coding" "opus") sonnet:$(get_provider_model_value "kimi-coding" "sonnet") haiku:$(get_provider_model_value "kimi-coding" "haiku")"
+}
+
 get_qwen_models() {
   echo "opus:$(get_provider_model_value "qwen" "opus") sonnet:$(get_provider_model_value "qwen" "sonnet") haiku:$(get_provider_model_value "qwen" "haiku")"
 }
@@ -1965,6 +1981,7 @@ show_help() {
   echo "  ${GREEN}zai / z.ai${NC}        Z.AI GLM (provider-managed tier mapping)"
   echo "  ${GREEN}deepseek${NC}          DeepSeek Chat/Coder"
   echo "  ${GREEN}kimi${NC}              Kimi (Moonshot AI)"
+  echo "  ${GREEN}kimi-coding${NC}       Kimi Coding Plan (K2.6)"
   echo "  ${GREEN}qwen${NC}              Qwen Coder (7B, 14B, 32B)"
   echo "  ${GREEN}groq${NC}              Groq (Llama 3.3, Mixtral)"
   echo "  ${GREEN}together${NC}          Together AI (Llama, Mixtral, Mistral)"
@@ -2054,6 +2071,9 @@ show_key_docs() {
   echo "  ${GREEN}Kimi:${NC} https://platform.moonshot.cn/console/api-keys"
   echo "    → Moonshot AI (may require Chinese phone number)"
   echo ""
+  echo "  ${GREEN}Kimi Coding Plan:${NC} https://kimi.com"
+  echo "    → KIMI_CODING_API_KEY (sk-sp-xxxxx format)"
+  echo ""
   echo "  ${GREEN}Qwen/SiliconFlow:${NC} https://siliconflow.cn/account/ak"
   echo "    → \$0.42/1M tokens (Qwen2.5-Coder)"
   echo ""
@@ -2093,6 +2113,7 @@ list_providers() {
   echo "  zai           - Z.AI GLM (provider-managed)"
   echo "  deepseek      - DeepSeek Chat/Coder"
   echo "  kimi          - Kimi (Moonshot AI)"
+  echo "  kimi-coding   - Kimi Coding Plan (K2.6)"
   echo "  qwen          - Qwen Coder (32B/14B/7B)"
   echo "  groq          - Groq (Llama 3.3/Mixtral)"
   echo "  together      - Together AI (70B/8x7B/7B)"
@@ -2245,6 +2266,7 @@ get_current_config_from_file() {
     *"z.ai"*) echo "zai" ;;
     *"deepseek"*) echo "deepseek" ;;
     *"moonshot"*) echo "kimi" ;;
+    *"api.kimi.com/coding"*) echo "kimi-coding" ;;
     *"siliconflow"*) echo "qwen" ;;
     *"groq"*) echo "groq" ;;
     *"together"*) echo "together" ;;
@@ -2285,6 +2307,7 @@ get_friendly_name() {
     zai|z.ai|glm) echo "Z.AI (GLM)" ;;
     deepseek) echo "DeepSeek" ;;
     kimi) echo "Kimi (Moonshot)" ;;
+    kimi-coding) echo "Kimi Coding Plan (K2.6)" ;;
     qwen) echo "Qwen Coder" ;;
     groq) echo "Groq" ;;
     together) echo "Together AI" ;;
