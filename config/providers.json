@@ -45,6 +45,18 @@
         "haiku": "moonshot-v1-8k"
       }
     },
+    "kimi-coding": {
+      "base_url": "https://api.kimi.com/coding/",
+      "auth_env": [
+        "KIMI_CODING_API_KEY"
+      ],
+      "mapping_strategy": "fixed",
+      "models": {
+        "opus": "kimi-k2.6",
+        "sonnet": "kimi-k2.6",
+        "haiku": "kimi-k2.6"
+      }
+    },
     "qwen": {
       "base_url": "https://api.siliconflow.cn/v1/anthropic",
       "auth_env": [
